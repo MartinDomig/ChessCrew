@@ -12,6 +12,7 @@ api = Blueprint('api', __name__)
 # Register state endpoint blueprint
 def register_blueprints(app):
     app.register_blueprint(state_bp, url_prefix='/api')
+    app.register_blueprint(api, url_prefix='/api')
 
 def admin_required(f):
     @wraps(f)
