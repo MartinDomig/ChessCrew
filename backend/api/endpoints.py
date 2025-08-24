@@ -19,7 +19,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         user_id = session.get('user_id')
         user = User.query.get(user_id) if user_id else None
-        if not user or not user.admin:
+        if not user or not user.is_admin:
             abort(403)
         return f(*args, **kwargs)
     return decorated_function
@@ -123,7 +123,7 @@ def setup_admin():
     password = data.get('password')
     if not username or not password:
         return jsonify({'error': 'Benutzername und Passwort erforderlich.'}), 400
-    user = User(username=username, admin=True)
+    user = User(username=username, is_admin=True)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
