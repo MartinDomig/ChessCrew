@@ -12,8 +12,8 @@ RUN npm install || true
 # Copy rest of the app
 COPY . .
 
-# Expose default Vite port
-EXPOSE 5173
+# Expose default React port
+EXPOSE 3000
 
-# Start Vite dev server
-CMD ["npm", "run", "dev", "--", "--host"]
+# Start React development server
+CMD ["npm", "start"]

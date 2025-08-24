@@ -13,5 +13,5 @@ pip install -r backend/requirements.txt
 export FLASK_SECRET_KEY="my secret key"
 
 # Start the Flask development server
-python backend/app.py
+python -m backend.app
 

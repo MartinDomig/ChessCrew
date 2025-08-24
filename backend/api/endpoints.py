@@ -4,9 +4,14 @@ import os
 import tempfile
 import subprocess
 from flask import Flask, Blueprint, jsonify, request, current_app, session, abort, Response
-from db.models import db, Player, User, Tag, Note
+from backend.db.models import db, Player, User, Tag, Note
+from .state import state_bp
 
 api = Blueprint('api', __name__)
+
+# Register state endpoint blueprint
+def register_blueprints(app):
+    app.register_blueprint(state_bp, url_prefix='/api')
 
 def admin_required(f):
     @wraps(f)

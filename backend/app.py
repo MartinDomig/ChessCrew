@@ -1,7 +1,7 @@
 import os
 from flask import Flask, render_template
-from api.endpoints import register_routes
-from db.models import db
+from backend.api.endpoints import register_blueprints
+from backend.db.models import db
 
 def create_app():
     app = Flask(__name__)
@@ -20,13 +20,16 @@ def create_app():
         db.create_all()
 
     # Register API routes
-    register_routes(app)
-        # Index page route
-        @app.route('/')
-        def index():
-            return render_template('index.html')
+    register_blueprints(app)
+
+    # Index page route
+    @app.route('/')
+    def index():
+        return render_template('index.html')
+
     return app
 
 if __name__ == '__main__':
     app = create_app()
     app.run(port=15001, debug=True)
+
