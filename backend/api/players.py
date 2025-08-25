@@ -7,6 +7,29 @@ from .auth import login_required, admin_required
 
 players_bp = Blueprint('players', __name__)
 
+# Key translations for notes
+KEY_TRANSLATIONS = {
+    'first_name': 'Vorname',
+    'last_name': 'Nachname',
+    'elo': 'ELO',
+    'fide_number': 'FIDE-Nr.',
+    'fide_elo': 'FIDE-ELO',
+    'birthday': 'Geburtsdatum',
+    'kat': 'Kategorie',
+    'zip': 'PLZ',
+    'town': 'Ort',
+    'country': 'Land',
+    'phone': 'Telefon',
+    'email': 'E-Mail',
+    'club': 'Verein',
+    'is_active': 'Aktiv',
+    'female': 'Weiblich',
+    'p_number': 'PNr',
+    'tags': 'Tags',
+    'rating': 'Wertung',
+    'username': 'Benutzername',
+}
+
 @players_bp.route('/players', methods=['GET'])
 @login_required
 def list_players():
@@ -49,7 +72,8 @@ def update_player(player_id):
         if key in allowed_fields:
             old_value = getattr(player, key)
             if old_value != value:
-                changes.append(f"{key}: '{old_value}' → '{value}'")
+                key_label = KEY_TRANSLATIONS.get(key, key)
+                changes.append(f"{key_label}: '{old_value}' → '{value}'")
                 setattr(player, key, value)
     if changes:
         note_text = "Geändert: " + "; ".join(changes)
@@ -142,7 +166,8 @@ def import_players_csv():
                 new_value = cast(row.get(csv_key, ''))
                 old_value = getattr(player, attr)
                 if old_value != new_value:
-                    changes.append(f"{attr}: '{old_value}' → '{new_value}'")
+                    key_label = KEY_TRANSLATIONS.get(attr, attr)
+                    changes.append(f"{key_label}: '{old_value}' → '{new_value}'")
                     setattr(player, attr, new_value)
             note_text = "Importiert"
             if changes:
