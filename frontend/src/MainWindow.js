@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AppBar, Toolbar, IconButton, Typography, Box, Container, Menu, MenuItem, ListItemIcon } from '@mui/material';
+import { AppBar, Toolbar, IconButton, Typography, Box, Container, Menu, MenuItem, ListItemIcon, Drawer, Switch } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
 import ImportDialog from './ImportDialog';
@@ -13,6 +13,8 @@ export default function MainWindow() {
   const [anchorEl, setAnchorEl] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
 
   useEffect(() => {
     apiFetch('/players')
@@ -27,6 +29,16 @@ export default function MainWindow() {
       .catch(() => setIsAdmin(false));
   }, []);
 
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    const param = showActiveOnly ? '?active=true' : '';
+    apiFetch(`/players${param}`)
+      .then(setPlayers)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [showActiveOnly]);
+
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -36,6 +48,14 @@ export default function MainWindow() {
   const handleImportClick = () => {
     setImportOpen(true);
     handleMenuClose();
+  };
+  const handleLogout = async () => {
+    try {
+      await apiFetch('/logout', { method: 'POST' });
+      window.location.reload();
+    } catch (err) {
+      // Optionally show an error message
+    }
   };
 
   return (
@@ -52,6 +72,20 @@ export default function MainWindow() {
               </ListItemIcon>
               Import Meldekartei
             </MenuItem>
+            <MenuItem>
+              <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                Nur aktive Spieler anzeigen
+                <Switch
+                  edge="end"
+                  checked={showActiveOnly}
+                  onChange={(_, checked) => setShowActiveOnly(checked)}
+                  color="primary"
+                />
+              </Box>
+            </MenuItem>
+            <MenuItem onClick={handleLogout}>
+              Logout
+            </MenuItem>
           </Menu>
           <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
@@ -60,6 +94,27 @@ export default function MainWindow() {
         </Toolbar>
       </AppBar>
       <Toolbar /> {/* Spacer for fixed AppBar */}
+      <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <MenuItem onClick={() => setImportOpen(true)}>
+          <ListItemIcon><ImportExportIcon /></ListItemIcon>
+          Meldekartei importieren
+        </MenuItem>
+        <MenuItem>
+          <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            Nur aktive Spieler anzeigen
+            <Switch
+              edge="end"
+              checked={showActiveOnly}
+              onChange={(_, checked) => setShowActiveOnly(checked)}
+              color="primary"
+            />
+          </Box>
+        </MenuItem>
+        <MenuItem onClick={handleLogout}>
+          <ListItemIcon></ListItemIcon>
+          Logout
+        </MenuItem>
+      </Drawer>
       <Container sx={{ flex: 1, overflowY: 'auto', mt: 2 }}>
         {loading ? (
           <Typography>Loading players...</Typography>
