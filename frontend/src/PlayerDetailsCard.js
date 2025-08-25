@@ -81,12 +81,14 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
           {player.club}
         </Typography>
         <PlayerTags
-          player={player}
+          player={localPlayer}
           key={playerTagsKey}
           onTagClick={async (tag) => {
             if (window.confirm(`Tag "${tag.name}" wirklich entfernen?`)) {
               await apiFetch(`/players/${player.id}/tags/${tag.id}`, { method: 'DELETE' });
-              setPlayerTagsKey(k => k + 1); // force PlayerTags to reload
+              const updated = await apiFetch(`/players/${player.id}`);
+              setLocalPlayer(updated);
+              setPlayerTagsKey(k => k + 1);
             }
           }}
         />
@@ -167,12 +169,16 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
           open={tagModalOpen}
           onClose={async () => {
             setTagModalOpen(false);
-            setPlayerTagsKey(k => k + 1); // force PlayerTags to reload after tag manager closes
+            const updated = await apiFetch(`/players/${player.id}`);
+            setLocalPlayer(updated);
+            setPlayerTagsKey(k => k + 1);
           }}
           onTagAdded={
-            () => {
+            async () => {
               setTagModalOpen(false);
-              setPlayerTagsKey(k => k + 1); // force PlayerTags to reload after tag manager closes
+              const updated = await apiFetch(`/players/${player.id}`);
+              setLocalPlayer(updated);
+              setPlayerTagsKey(k => k + 1);
             }
           }
         />

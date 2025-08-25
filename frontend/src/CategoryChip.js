@@ -1,6 +1,5 @@
 import React from 'react';
 import { Chip } from '@mui/material';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 function willMoveUp(player) {
   if (!player?.kat || !player?.birthday) return false;
@@ -34,14 +33,15 @@ function willMoveUp(player) {
   return ageThisYear === maxAge;
 }
 
-export default function CategoryChip({ player }) {
+export default function CategoryChip({ player, onClick }) {
   if (!player?.kat) return null;
 
-  return (
-    <Chip
-      label={player.kat + (willMoveUp(player) ? " >" : "")}
-      color={player.female ? "secondary" : "primary"}
-      size="small"
-    />
-  );
+    return (
+      <Chip
+        label={player.kat + (willMoveUp(player) ? " >" : "")}
+        color={player.female ? "secondary" : "primary"}
+        size="small"
+        onClick={onClick ? (e => { e.preventDefault(); e.stopPropagation(); onClick(player.kat); }) : undefined}
+      />
+    );
 }

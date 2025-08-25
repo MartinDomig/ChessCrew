@@ -10,6 +10,7 @@ export default function TagManager({ player, open, onClose, onTagAdded }) {
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#1976d2');
   const [adding, setAdding] = useState(false);
+  const [showAddUI, setShowAddUI] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -21,6 +22,7 @@ export default function TagManager({ player, open, onClose, onTagAdded }) {
         .finally(() => setTagLoading(false));
       setNewTagName('');
       setNewTagColor('#1976d2');
+      setShowAddUI(false);
     }
   }, [open]);
 
@@ -50,6 +52,7 @@ export default function TagManager({ player, open, onClose, onTagAdded }) {
       await apiFetch(`/players/${player.id}/tags`, { method: 'POST', body: JSON.stringify({ tag_id: tag.id }) });
       setNewTagName('');
       setNewTagColor('#1976d2');
+      setShowAddUI(false);
       if (onTagAdded) onTagAdded(tag);
     } catch {
       setTagError('Tag konnte nicht erstellt werden');
@@ -83,31 +86,50 @@ export default function TagManager({ player, open, onClose, onTagAdded }) {
           )}
         </Box>
         <Box sx={{ mt: 3 }}>
-          <Typography variant="subtitle1">Neuen Tag erstellen:</Typography>
-          <TextField
-            label="Tag-Name"
-            value={newTagName}
-            onChange={e => setNewTagName(e.target.value)}
-            variant="outlined"
-            sx={{ mb: 2, mt: 1 }}
-            disabled={adding}
-          />
-          <Typography variant="subtitle2">Farbe wählen:</Typography>
-          <SketchPicker
-            color={newTagColor}
-            onChangeComplete={color => setNewTagColor(color.hex)}
-            presetColors={["#1976d2", "#388e3c", "#fbc02d", "#d32f2f", "#7b1fa2", "#455a64"]}
-            disableAlpha
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{ mt: 2 }}
-            onClick={handleCreateTag}
-            disabled={adding || !newTagName}
-          >
-            Tag erstellen und zuweisen
-          </Button>
+          {!showAddUI ? (
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => setShowAddUI(true)}
+              sx={{ mb: 2 }}
+            >
+              Tag hinzufügen
+            </Button>
+          ) : (
+            <>
+              <TextField
+                label="Tag-Name"
+                value={newTagName}
+                onChange={e => setNewTagName(e.target.value)}
+                variant="outlined"
+                sx={{ mb: 2, mt: 1 }}
+                disabled={adding}
+              />
+              <Typography variant="subtitle2">Farbe wählen:</Typography>
+              <SketchPicker
+                color={newTagColor}
+                onChangeComplete={color => setNewTagColor(color.hex)}
+                presetColors={["#1976d2", "#388e3c", "#fbc02d", "#d32f2f", "#7b1fa2", "#455a64"]}
+                disableAlpha
+              />
+              <Button
+                variant="contained"
+                color="primary"
+                sx={{ mt: 2 }}
+                onClick={handleCreateTag}
+                disabled={adding || !newTagName}
+              >
+                Tag erstellen und zuweisen
+              </Button>
+              <Button
+                variant="text"
+                sx={{ mt: 1, ml: 2 }}
+                onClick={() => setShowAddUI(false)}
+              >
+                Abbrechen
+              </Button>
+            </>
+          )}
         </Box>
       </DialogContent>
       <DialogActions>
