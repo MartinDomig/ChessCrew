@@ -111,7 +111,7 @@ export default function MainWindow() {
               Logout
             </MenuItem>
           </Menu>
-          <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
+          <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={() => { setShowActiveOnly(false); reloadPlayers(); }} />
         </Toolbar>
       </AppBar>
       <Toolbar />

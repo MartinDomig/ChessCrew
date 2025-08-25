@@ -3,7 +3,7 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typogra
 import ImportExportIcon from '@mui/icons-material/ImportExport';
 import { apiFetch } from './api';
 
-export default function ImportDialog({ open, onClose }) {
+export default function ImportDialog({ open, onClose, onImported }) {
   const [file, setFile] = useState(null);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -35,7 +35,8 @@ export default function ImportDialog({ open, onClose }) {
         method: 'POST',
         body: formData
       });
-      setImportResult(result.imported);
+  setImportResult(result.imported);
+  if (onImported) onImported();
     } catch (err) {
       setError('Upload fehlgeschlagen.');
     } finally {

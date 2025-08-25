@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, CircularProgress, TextField, Chip } from '@mui/material';
 import { apiFetch } from './api';
 import { getContrastColor } from './colorUtils';
+import { SketchPicker } from 'react-color';
 
 export default function TagManager({ player, open, onClose, onTagAdded }) {
   const [allTags, setAllTags] = useState([]);
