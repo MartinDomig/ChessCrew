@@ -41,7 +41,13 @@ def list_players():
         elif active.lower() == 'false':
             query = query.filter_by(is_active=False)
     players = query.order_by(Player.last_name.asc()).all()
-    return jsonify([p.to_dict() for p in players])
+    return jsonify([
+        {
+            **p.to_dict(),
+            'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in p.tags]
+        }
+        for p in players
+    ])
 
 @players_bp.route('/players', methods=['POST'])
 @login_required
