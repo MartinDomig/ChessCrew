@@ -11,10 +11,7 @@ players_bp = Blueprint('players', __name__)
 @login_required
 def list_players():
     players = Player.query.all()
-    return jsonify([
-        {'id': p.id, 'username': p.username, 'rating': getattr(p, 'rating', None)}
-        for p in players
-    ])
+    return jsonify([p.to_dict() for p in players])
 
 @players_bp.route('/players', methods=['POST'])
 @login_required

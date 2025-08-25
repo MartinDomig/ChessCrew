@@ -6,6 +6,7 @@ db = SQLAlchemy()
 
 class Player(db.Model):
     __tablename__ = 'players'
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     p_number = db.Column(db.Integer, unique=True, nullable=False)
     first_name = db.Column(db.String(80), nullable=False)
@@ -24,6 +25,9 @@ class Player(db.Model):
     is_active = db.Column(db.Boolean, default=False)
     tags = db.relationship('Tag', secondary='player_tags', back_populates='players')
     notes = db.relationship('Note', back_populates='player')
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 class User(db.Model):
     __tablename__ = 'users'
