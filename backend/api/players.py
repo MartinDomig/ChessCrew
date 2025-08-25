@@ -270,3 +270,16 @@ def update_player_note(player_id, note_id):
         'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
         'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
     }), 200
+
+@players_bp.route('/players/<int:player_id>/notes/<int:note_id>', methods=['DELETE'])
+@login_required
+def delete_player_note(player_id, note_id):
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Player not found'}), 404
+    note = Note.query.get(note_id)
+    if not note:
+        return jsonify({'error': 'Note not found'}), 404
+    db.session.delete(note)
+    db.session.commit()
+    return jsonify({'message': 'Note deleted successfully'}), 200
