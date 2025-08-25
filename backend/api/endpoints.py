@@ -170,5 +170,58 @@ def get_session():
         'employee_id': session.get('employee_id')
     }), 200
 
+@api.route('/tags', methods=['GET'])
+@login_required
+def list_tags():
+    tags = Tag.query.all()
+    return jsonify([{'id': t.id, 'name': t.name, 'color': t.color} for t in tags])
+
+@api.route('/tags', methods=['POST'])
+@admin_required
+def create_tag():
+    data = request.get_json()
+    name = data.get('name')
+    color = data.get('color')
+    if not name:
+        return jsonify({'error': 'Tag-Name erforderlich.'}), 400
+    if Tag.query.filter_by(name=name).first():
+        return jsonify({'error': 'Tag existiert bereits.'}), 409
+    tag = Tag(name=name, color=color)
+    db.session.add(tag)
+    db.session.commit()
+    return jsonify({'id': tag.id, 'name': tag.name, 'color': tag.color}), 201
+
+@api.route('/players/<int:player_id>/tags', methods=['POST'])
+@login_required
+def add_tag_to_player(player_id):
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Spieler nicht gefunden.'}), 404
+    data = request.get_json()
+    tag_id = data.get('tag_id')
+    tag = Tag.query.get(tag_id)
+    if not tag:
+        return jsonify({'error': 'Tag nicht gefunden.'}), 404
+    if tag in player.tags:
+        return jsonify({'error': 'Tag bereits zugewiesen.'}), 409
+    player.tags.append(tag)
+    db.session.commit()
+    return jsonify({'status': 'added'})
+
+@api.route('/players/<int:player_id>/tags/<int:tag_id>', methods=['DELETE'])
+@login_required
+def remove_tag_from_player(player_id, tag_id):
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Spieler nicht gefunden.'}), 404
+    tag = Tag.query.get(tag_id)
+    if not tag:
+        return jsonify({'error': 'Tag nicht gefunden.'}), 404
+    if tag not in player.tags:
+        return jsonify({'error': 'Tag nicht zugewiesen.'}), 409
+    player.tags.remove(tag)
+    db.session.commit()
+    return jsonify({'status': 'removed'})
+
 def register_routes(app):
     app.register_blueprint(api, url_prefix='/api')
