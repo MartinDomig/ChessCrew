@@ -35,21 +35,29 @@ def create_player():
     db.session.commit()
     return jsonify({'id': player.id, 'username': player.username, 'rating': player.rating}), 201
 
-@players_bp.route('/players/<int:player_id>', methods=['PUT'])
+@players_bp.route('/players/<int:player_id>', methods=['PUT', 'PATCH'])
 @login_required
 def update_player(player_id):
     player = Player.query.get(player_id)
     if not player:
         return jsonify({'error': 'Player not found'}), 404
     data = request.get_json()
-    username = data.get('username')
-    rating = data.get('rating')
-    if username:
-        player.username = username
-    if rating is not None:
-        player.rating = rating
+
+    allowed_fields = set(player.to_dict().keys())
+    changes = []
+    for key, value in data.items():
+        if key in allowed_fields:
+            old_value = getattr(player, key)
+            if old_value != value:
+                changes.append(f"{key}: '{old_value}' → '{value}'")
+                setattr(player, key, value)
+    if changes:
+        note_text = "Geändert: " + "; ".join(changes)
+        note = Note(player=player, content=note_text, created_at=datetime.now())
+        db.session.add(note)
+
     db.session.commit()
-    return jsonify({'id': player.id, 'username': player.username, 'rating': player.rating})
+    return jsonify(player.to_dict())
 
 @players_bp.route('/players/<int:player_id>', methods=['DELETE'])
 @login_required
