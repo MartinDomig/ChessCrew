@@ -144,7 +144,7 @@ def get_logged_in_user():
     user = User.query.get(user_id)
     if not user:
         return jsonify({'logged_in': False}), 200
-    return jsonify({'logged_in': True, 'username': user.username, 'admin': user.admin}), 200
+    return jsonify({'logged_in': True, 'username': user.username, 'admin': user.is_admin}), 200
 
 @api.route('/session/set', methods=['POST'])
 def set_session():
