@@ -101,7 +101,7 @@ def import_players_csv():
     stream = io.StringIO(file.stream.read().decode('utf-8'))
     reader = csv.DictReader(stream, delimiter=';')
     required_headers = [
-        'PNr', 'Vorname', 'Nachname', 'elo', 'Funktion', 'Verein', 'Staat', 'Gebdat'
+        'PNr', 'Vorname', 'Nachname', 'elo', 'Funktion', 'Verein', 'Staat', 'Gebdat', 'Sex'
     ]
     missing = [h for h in required_headers if h not in reader.fieldnames]
     if missing:
@@ -132,6 +132,9 @@ def import_players_csv():
         p_number = int(row.get('PNr', 0))
         player = Player.query.filter_by(p_number=p_number).first()
 
+        # Determine female from Sex column
+        is_female = bool(row.get('Sex', '').strip())
+
         if player:
             # Update existing player and track changes
             changes = []
@@ -151,7 +154,8 @@ def import_players_csv():
             player = Player(
                 p_number=p_number,
                 **{attr: cast(row.get(csv_key, '')) for attr, csv_key, cast in field_map},
-                is_active=False
+                is_active=False,
+                female=is_female
             )
             db.session.add(player)
             note = Note(player=player, content="Importiert", created_at=datetime.now())

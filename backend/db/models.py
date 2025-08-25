@@ -23,6 +23,7 @@ class Player(db.Model):
     email = db.Column(db.String(120), nullable=True)
     club = db.Column(db.String(80), nullable=True)
     is_active = db.Column(db.Boolean, default=False)
+    female = db.Column(db.Boolean, default=False)
     tags = db.relationship('Tag', secondary='player_tags', back_populates='players')
     notes = db.relationship('Note', back_populates='player')
 
