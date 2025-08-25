@@ -160,3 +160,19 @@ def import_players_csv():
     
     db.session.commit()
     return jsonify({'imported': imported}), 201
+
+@players_bp.route('/players/<int:player_id>/notes', methods=['GET'])
+@login_required
+def get_player_notes(player_id):
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Player not found'}), 404
+    notes = Note.query.filter_by(player_id=player.id).order_by(Note.created_at.desc()).all()
+    return jsonify([
+        {
+            'id': note.id,
+            'content': note.content,
+            'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        for note in notes
+    ])
