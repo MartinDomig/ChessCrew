@@ -61,6 +61,11 @@ export default function MainWindow() {
     }
   };
 
+  const handlePlayerUpdate = (updatedPlayer) => {
+    setPlayers(players => players.map(p => p.id === updatedPlayer.id ? updatedPlayer : p));
+    setSelectedPlayer(updatedPlayer);
+  };
+
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="fixed">
@@ -135,16 +140,14 @@ export default function MainWindow() {
         {selectedPlayer ? (
           <PlayerDetailsCard
             player={selectedPlayer}
-            onBack={() => {
-              setSelectedPlayer(null);
-              reloadPlayers();
-            }}
+            onBack={() => setSelectedPlayer(null)}
             onStatusChange={isActive => {
               setPlayers(players => players.map(p =>
                 p.id === selectedPlayer.id ? { ...p, is_active: isActive } : p
               ));
               setSelectedPlayer(sp => sp ? { ...sp, is_active: isActive } : sp);
             }}
+            onPlayerUpdate={handlePlayerUpdate}
           />
         ) : loading ? (
           <CircularProgress size={24} sx={{ mr: 2 }} />

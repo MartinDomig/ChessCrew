@@ -8,7 +8,7 @@ import { apiFetch } from './api';
 import Autocomplete from '@mui/material/Autocomplete';
 import PlayerTags from './PlayerTags';
 
-export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
+export default function PlayerDetailsCard({ player, onBack, onStatusChange, onPlayerUpdate }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -89,6 +89,7 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
               const updated = await apiFetch(`/players/${player.id}`);
               setLocalPlayer(updated);
               setPlayerTagsKey(k => k + 1);
+              if (onPlayerUpdate) onPlayerUpdate(updated);
             }
           }}
         />
@@ -172,6 +173,7 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
             const updated = await apiFetch(`/players/${player.id}`);
             setLocalPlayer(updated);
             setPlayerTagsKey(k => k + 1);
+            if (onPlayerUpdate) onPlayerUpdate(updated);
           }}
           onTagAdded={
             async () => {
@@ -179,6 +181,7 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
               const updated = await apiFetch(`/players/${player.id}`);
               setLocalPlayer(updated);
               setPlayerTagsKey(k => k + 1);
+              if (onPlayerUpdate) onPlayerUpdate(updated);
             }
           }
         />

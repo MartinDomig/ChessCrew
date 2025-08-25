@@ -1,7 +1,8 @@
+
 import React, { useEffect, useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, CircularProgress, TextField, Chip } from '@mui/material';
 import { apiFetch } from './api';
-import { SketchPicker } from 'react-color';
+import { getContrastColor } from './colorUtils';
 
 export default function TagManager({ player, open, onClose, onTagAdded }) {
   const [allTags, setAllTags] = useState([]);
@@ -72,17 +73,25 @@ export default function TagManager({ player, open, onClose, onTagAdded }) {
           {allTags.length === 0 ? (
             <Typography color="text.secondary">Keine Tags vorhanden</Typography>
           ) : (
-            allTags.map(tag => (
-              <Chip
-                key={tag.id}
-                label={tag.name}
-                style={{ backgroundColor: tag.color || undefined, color: '#fff' }}
-                onClick={() => handleSelectTag(tag)}
-                clickable
-                sx={{ mb: 0.5 }}
-                disabled={adding}
-              />
-            ))
+            allTags.map(tag => {
+              const bg = tag.color || undefined;
+              const fg = getContrastColor(bg);
+              return (
+                <Chip
+                  key={tag.id}
+                  label={tag.name}
+                  style={{
+                    backgroundColor: bg,
+                    color: fg,
+                    border: '1px solid rgba(0,0,0,0.2)'
+                  }}
+                  onClick={() => handleSelectTag(tag)}
+                  clickable
+                  sx={{ mb: 0.5 }}
+                  disabled={adding}
+                />
+              );
+            })
           )}
         </Box>
         <Box sx={{ mt: 3 }}>
