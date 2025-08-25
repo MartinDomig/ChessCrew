@@ -177,7 +177,7 @@ def list_tags():
     return jsonify([{'id': t.id, 'name': t.name, 'color': t.color} for t in tags])
 
 @api.route('/tags', methods=['POST'])
-@admin_required
+@login_required
 def create_tag():
     data = request.get_json()
     name = data.get('name')
