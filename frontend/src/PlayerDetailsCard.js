@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, Typography, Button, Box, Chip, CircularProgress } from '@mui/material';
+import { Card, CardContent, Typography, Button, Box, CircularProgress } from '@mui/material';
+import CategoryChip from './CategoryChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
 
-export default function PlayerDetailsCard({ player, onBack }) {
+export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -20,13 +21,13 @@ export default function PlayerDetailsCard({ player, onBack }) {
 
   return (
     <Card sx={{ mb: 2, maxWidth: 500, mx: 'auto', position: 'relative' }}>
-      <PlayerActiveStar player={player} />
+  <PlayerActiveStar player={player} onStatusChange={onStatusChange} />
       <CardContent>
         <Typography variant="h5" sx={{ mb: 2 }}>
           {player.first_name} {player.last_name}
         </Typography>
         <Box sx={{ mb: 2 }}>
-          {player.kat && <Chip label={player.kat} color="primary" size="small" />}
+          <CategoryChip player={player} />
         </Box>
         {Object.entries(player).map(([key, value]) => (
           <Typography key={key} sx={{ mb: 1 }}>
