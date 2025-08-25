@@ -4,6 +4,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import CategoryChip from './CategoryChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
+import Autocomplete from '@mui/material/Autocomplete';
 
 export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
   const [notes, setNotes] = useState([]);
@@ -15,6 +16,12 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [localPlayer, setLocalPlayer] = useState(player);
+  const [tagModalOpen, setTagModalOpen] = useState(false);
+  const [allTags, setAllTags] = useState([]);
+  const [playerTags, setPlayerTags] = useState(player.tags || []);
+  const [tagInput, setTagInput] = useState('');
+  const [tagLoading, setTagLoading] = useState(false);
+  const [tagError, setTagError] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -29,6 +36,25 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
     setLocalPlayer(player);
     setModalOpen(false);
   }, [player.id]);
+
+  useEffect(() => {
+    setPlayerTags(player.tags || []);
+  }, [player.id]);
+
+  // Fetch all tags when modal opens
+  const handleOpenTagModal = async () => {
+    setTagModalOpen(true);
+    setTagLoading(true);
+    setTagError(null);
+    try {
+      const tags = await apiFetch('/tags'); // expects [{id, name, color}]
+      setAllTags(tags);
+    } catch (err) {
+      setTagError('Fehler beim Laden der Tags');
+    } finally {
+      setTagLoading(false);
+    }
+  };
 
   // Save handler for modal
   const handleModalSave = async () => {
@@ -54,6 +80,41 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
       setSaveError(err.message);
     } finally {
       setSaveLoading(false);
+    }
+  };
+
+  // Add tag to player (existing or new)
+  const handleAddTag = async (tagName) => {
+    setTagLoading(true);
+    setTagError(null);
+    try {
+      // If tag exists, use it; else create
+      let tag = allTags.find(t => t.name === tagName);
+      if (!tag) {
+        tag = await apiFetch('/tags', { method: 'POST', body: JSON.stringify({ name: tagName }) });
+        setAllTags([...allTags, tag]);
+      }
+      await apiFetch(`/players/${player.id}/tags`, { method: 'POST', body: JSON.stringify({ tag_id: tag.id }) });
+      setPlayerTags([...playerTags, tag]);
+      setTagInput('');
+    } catch (err) {
+      setTagError('Tag konnte nicht hinzugefügt werden');
+    } finally {
+      setTagLoading(false);
+    }
+  };
+
+  // Remove tag from player
+  const handleRemoveTag = async (tagId) => {
+    setTagLoading(true);
+    setTagError(null);
+    try {
+      await apiFetch(`/players/${player.id}/tags/${tagId}`, { method: 'DELETE' });
+      setPlayerTags(playerTags.filter(t => t.id !== tagId));
+    } catch (err) {
+      setTagError('Tag konnte nicht entfernt werden');
+    } finally {
+      setTagLoading(false);
     }
   };
 
@@ -132,6 +193,53 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange }) {
             <Button onClick={handleModalSave} disabled={saveLoading} variant="contained" color="primary">
               {saveLoading ? 'Speichern...' : 'Speichern'}
             </Button>
+          </DialogActions>
+        </Dialog>
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={handleOpenTagModal}
+          sx={{ mt: 2 }}
+        >
+          Tags bearbeiten
+        </Button>
+        <Dialog open={tagModalOpen} onClose={() => setTagModalOpen(false)}>
+          <DialogTitle>Tags verwalten</DialogTitle>
+          <DialogContent>
+            {tagLoading ? <CircularProgress size={24} /> : null}
+            {tagError && <Typography color="error">{tagError}</Typography>}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle1">Aktuelle Tags:</Typography>
+              {playerTags.length === 0 ? (
+                <Typography color="text.secondary">Keine Tags</Typography>
+              ) : (
+                playerTags.map(tag => (
+                  <Box key={tag.id} sx={{ display: 'inline-block', mr: 1, mb: 1 }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      style={{ backgroundColor: tag.color || undefined }}
+                      onClick={() => handleRemoveTag(tag.id)}
+                    >
+                      {tag.name} ×
+                    </Button>
+                  </Box>
+                ))
+              )}
+            </Box>
+            <Autocomplete
+              freeSolo
+              options={allTags.map(t => t.name)}
+              value={tagInput}
+              onInputChange={(_, v) => setTagInput(v)}
+              onChange={(_, v) => v && handleAddTag(v)}
+              renderInput={(params) => (
+                <TextField {...params} label="Tag hinzufügen" variant="outlined" />
+              )}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setTagModalOpen(false)}>Schließen</Button>
           </DialogActions>
         </Dialog>
         <Box sx={{ mt: 4 }}>
