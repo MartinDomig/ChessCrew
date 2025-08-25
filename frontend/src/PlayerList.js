@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import PlayerCard from './PlayerCard';
-import { Box, Chip, Autocomplete, TextField } from '@mui/material';
+import { Box, Paper, Chip, Autocomplete, TextField } from '@mui/material';
+import TagChip from './TagChip';
 
 export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
   const [searchTags, setSearchTags] = useState([]);
@@ -72,19 +73,18 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
               autoFocus
               slotProps={{
                 input: {
-                  startAdornment: searchTags.map((option, index) => (
-                    <Chip
-                      key={option}
-                      variant="outlined"
-                      color="primary"
-                      label={option}
-                      sx={{ mr: 0.5 }}
-                      onDelete={() => {
-                        setSearchTags(tags => tags.filter((t, i) => i !== index));
-                      }}
-                    />
-                  )),
-                }
+                    startAdornment: searchTags.map((option, index) => (
+                      <TagChip
+                        tag={{ name: option }}
+                        size="small"
+                        key={option}
+                        onClick={() => {
+                          setSearchTags(tags => tags.filter((t, i) => i !== index));
+                        }}
+                        sx={{ mr: 0.5 }}
+                      />
+                    )),
+                },
               }}
             />
           )}
@@ -95,21 +95,21 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
         <List
           height={window.innerHeight - 128 > 300 ? window.innerHeight - 128 : 300}
           itemCount={filteredPlayers.length}
-          itemSize={110}
+          itemSize={180}
           width={"100%"}
           style={{ maxWidth: 500, margin: "0 auto" }}
         >
           {({ index, style }) => {
             const player = filteredPlayers[index];
             return (
-              <div key={player.id} style={{ ...style, cursor: 'pointer' }} onClick={() => onPlayerClick(player)}>
+              <Box key={player.id} sx={{ ...style, cursor: 'pointer' }} onClick={() => onPlayerClick(player)}>
                 <PlayerCard
                   player={player}
                   onStatusChange={isActive => onStatusChange(player.id, isActive)}
                   onTagClick={handleTagClick}
                   onCategoryClick={handleCategoryClick}
                 />
-              </div>
+              </Box>
             );
           }}
         </List>

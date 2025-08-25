@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, Typography, Button, Box, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
+import { IconButton, Card, CardContent, Typography, Button, Box, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import TagManager from './TagManager';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import CategoryChip from './CategoryChip';
+import TagChip from './TagChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
 import Autocomplete from '@mui/material/Autocomplete';
@@ -80,19 +82,6 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange, onPl
         <Typography color="text.secondary" sx={{ mb: 2 }}>
           {player.club}
         </Typography>
-        <PlayerTags
-          player={localPlayer}
-          key={playerTagsKey}
-          onTagClick={async (tag) => {
-            if (window.confirm(`Tag "${tag.name}" wirklich entfernen?`)) {
-              await apiFetch(`/players/${player.id}/tags/${tag.id}`, { method: 'DELETE' });
-              const updated = await apiFetch(`/players/${player.id}`);
-              setLocalPlayer(updated);
-              setPlayerTagsKey(k => k + 1);
-              if (onPlayerUpdate) onPlayerUpdate(updated);
-            }
-          }}
-        />
         <Typography sx={{ mb: 1 }}>
             <strong>ELO:</strong> {player.elo ?? ''} / {player.fide_elo ?? ''}
         </Typography>
@@ -110,13 +99,14 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange, onPl
           <span style={{ marginLeft: 8 }}>
             {localPlayer.phone ? localPlayer.phone : null}
           </span>
-          <Button
-            variant="outlined"
+          <IconButton
             color="primary"
             onClick={() => setModalOpen(true)}
             sx={{ ml: 2 }}
-            startIcon={<EditIcon />}
-          >Ändern</Button>
+            aria-label="Kontakt bearbeiten"
+          >
+            <EditIcon />
+          </IconButton>
         </Typography>
         {saveError && (
           <Typography color="error" sx={{ mb: 1 }}>{saveError}</Typography>
@@ -157,14 +147,35 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange, onPl
             </Button>
           </DialogActions>
         </Dialog>
-        <Button
-          variant="outlined"
-          color="primary"
-          onClick={handleOpenTagModal}
-          sx={{ mt: 2 }}
-        >
-          Tags bearbeiten
-        </Button>
+        <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 1, width: '100%' }}>
+          <IconButton
+            color="primary"
+            size="large"
+            onClick={handleOpenTagModal}
+            aria-label="Tag hinzufügen"
+            sx={{ p: 0, alignSelf: 'center', verticalAlign: 'middle' }}
+          >
+            <AddCircleOutlineIcon fontSize="large" />
+          </IconButton>
+          {localPlayer.tags && localPlayer.tags.map(tag => (
+            <TagChip
+              key={`player-${localPlayer.id}-tag-${tag.id}`}
+              tag={{ ...tag, name: tag.name ? `${tag.name} ❌` : '' }}
+              size="small"
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.confirm(`Tag "${tag.name}" wirklich entfernen?`)) {
+                  await apiFetch(`/players/${player.id}/tags/${tag.id}`, { method: 'DELETE' });
+                  const updated = await apiFetch(`/players/${player.id}`);
+                  setLocalPlayer(updated);
+                  setPlayerTagsKey(k => k + 1);
+                  if (onPlayerUpdate) onPlayerUpdate(updated);
+                }
+              }}
+            />
+          ))}
+        </Box>
         <TagManager
           player={player}
           open={tagModalOpen}
