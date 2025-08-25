@@ -64,6 +64,18 @@ def create_player():
     db.session.commit()
     return jsonify({'id': player.id, 'username': player.username, 'rating': player.rating}), 201
 
+# Get a single player by ID (including tags)
+@players_bp.route('/players/<int:player_id>', methods=['GET'])
+@login_required
+def get_player(player_id):
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Player not found'}), 404
+    return jsonify({
+        **player.to_dict(),
+        'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags]
+    })
+
 @players_bp.route('/players/<int:player_id>', methods=['PUT', 'PATCH'])
 @login_required
 def update_player(player_id):
