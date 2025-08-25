@@ -10,7 +10,14 @@ players_bp = Blueprint('players', __name__)
 @players_bp.route('/players', methods=['GET'])
 @login_required
 def list_players():
-    players = Player.query.all()
+    active = request.args.get('active')
+    query = Player.query
+    if active is not None:
+        if active.lower() == 'true':
+            query = query.filter_by(is_active=True)
+        elif active.lower() == 'false':
+            query = query.filter_by(is_active=False)
+    players = query.order_by(Player.last_name.asc()).all()
     return jsonify([p.to_dict() for p in players])
 
 @players_bp.route('/players', methods=['POST'])
