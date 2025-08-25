@@ -223,5 +223,13 @@ def remove_tag_from_player(player_id, tag_id):
     db.session.commit()
     return jsonify({'status': 'removed'})
 
+@api.route('/players/<int:player_id>/tags', methods=['GET'])
+@login_required
+def get_player_tags(player_id):
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Spieler nicht gefunden.'}), 404
+    return jsonify([{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags])
+
 def register_routes(app):
     app.register_blueprint(api, url_prefix='/api')
