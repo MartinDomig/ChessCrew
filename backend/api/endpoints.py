@@ -6,6 +6,8 @@ import subprocess
 from flask import Flask, Blueprint, jsonify, request, current_app, session, abort, Response
 from backend.db.models import db, Player, User, Tag, Note
 from .state import state_bp
+from .players import players_bp
+from .auth import login_required, admin_required
 
 api = Blueprint('api', __name__)
 
@@ -13,25 +15,8 @@ api = Blueprint('api', __name__)
 def register_blueprints(app):
     app.register_blueprint(state_bp, url_prefix='/api')
     app.register_blueprint(api, url_prefix='/api')
+    app.register_blueprint(players_bp, url_prefix='/api')
 
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        user_id = session.get('user_id')
-        user = User.query.get(user_id) if user_id else None
-        if not user or not user.is_admin:
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Helper decorator for login protection
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('user_id'):
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated_function
 
 ######
 # Implement endpoints below
