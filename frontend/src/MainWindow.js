@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { FixedSizeList as List } from 'react-window';
 import { AppBar, Toolbar, IconButton, Typography, Box, Container, Menu, MenuItem, ListItemIcon, Drawer, Switch } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -26,7 +27,6 @@ export default function MainWindow() {
   useEffect(() => {
     if (search || debouncedSearch) {
       const handler = setTimeout(() => {
-        console.log('Set debounced search:', search)
         setDebouncedSearch(search);
       }, 300);
       return () => clearTimeout(handler);
@@ -171,25 +171,42 @@ export default function MainWindow() {
         ) : error ? (
           <Typography color="error">{error}</Typography>
         ) : (
-          players
-            .filter(player => {
+          (() => {
+            const filteredPlayers = players.filter(player => {
               const name = `${player.first_name} ${player.last_name}`.toLowerCase();
               const kat = (player.kat || "").toLowerCase();
               const terms = debouncedSearch.toLowerCase().split(/\s+/).filter(Boolean);
               return terms.length === 0 || terms.some(term => name.includes(term) || kat.includes(term));
-            })
-            .map(player => (
-              <div key={player.id} onClick={() => setSelectedPlayer(player)} style={{ cursor: 'pointer' }}>
-                <PlayerCard
-                  player={player}
-                  onStatusChange={isActive => {
-                    setPlayers(players => players.map(p =>
-                      p.id === player.id ? { ...p, is_active: isActive } : p
-                    ));
-                  }}
-                />
-              </div>
-            ))
+            });
+            if (filteredPlayers.length === 0) return null;
+            // Use window height minus AppBar and Toolbar (approx 128px)
+            const listHeight = window.innerHeight - 128;
+            return (
+              <List
+                height={listHeight > 300 ? listHeight : 300}
+                itemCount={filteredPlayers.length}
+                itemSize={110}
+                width={"100%"}
+                style={{ maxWidth: 500, margin: "0 auto" }}
+              >
+                {({ index, style }) => {
+                  const player = filteredPlayers[index];
+                  return (
+                    <div key={player.id} style={style} onClick={() => setSelectedPlayer(player)}>
+                      <PlayerCard
+                        player={player}
+                        onStatusChange={isActive => {
+                          setPlayers(players => players.map(p =>
+                            p.id === player.id ? { ...p, is_active: isActive } : p
+                          ));
+                        }}
+                      />
+                    </div>
+                  );
+                }}
+              </List>
+            );
+          })()
         )}
       </Container>
     </Box>
