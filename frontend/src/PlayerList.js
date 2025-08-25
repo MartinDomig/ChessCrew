@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import PlayerCard from './PlayerCard';
 import { Box, Paper, Chip, Autocomplete, TextField } from '@mui/material';
 import TagChip from './TagChip';
+import { apiFetch } from './api';
 
 export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
+  const [allTags, setAllTags] = useState([]);
   const [searchTags, setSearchTags] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [debouncedInput, setDebouncedInput] = useState("");
@@ -15,6 +17,11 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
     }, 300);
     return () => clearTimeout(handler);
   }, [inputValue]);
+
+  useEffect(() => {
+    apiFetch(`/tags`)
+      .then(setAllTags);
+  }, []);
 
   const handleTagClick = (tag) => {
     if (!searchTags.includes(tag.name)) {
@@ -60,7 +67,7 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
         <Autocomplete
           multiple
           freeSolo
-          options={[]}
+          options={Array.isArray(allTags) ? allTags.map(tag => tag.name) : []}
           value={searchTags}
           inputValue={inputValue}
           onChange={handleAutocompleteChange}
@@ -71,21 +78,6 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
               variant="outlined"
               placeholder="Spieler suchen..."
               autoFocus
-              slotProps={{
-                input: {
-                    startAdornment: searchTags.map((option, index) => (
-                      <TagChip
-                        tag={{ name: option }}
-                        size="small"
-                        key={option}
-                        onClick={() => {
-                          setSearchTags(tags => tags.filter((t, i) => i !== index));
-                        }}
-                        sx={{ mr: 0.5 }}
-                      />
-                    )),
-                },
-              }}
             />
           )}
           sx={{ width: '100%' }}
