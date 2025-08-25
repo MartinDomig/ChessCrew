@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { AppBar, Toolbar, IconButton, Typography, Box, Container, Menu, MenuItem, ListItemIcon, Drawer, Switch } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MenuIcon from '@mui/icons-material/Menu';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
 import ImportDialog from './ImportDialog';
 import PlayerCard from './PlayerCard';
+import PlayerDetailsCard from './PlayerDetailsCard';
 import { apiFetch } from './api';
 
 export default function MainWindow() {
@@ -15,13 +17,7 @@ export default function MainWindow() {
   const [importOpen, setImportOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showActiveOnly, setShowActiveOnly] = useState(true);
-
-  useEffect(() => {
-    apiFetch('/players')
-      .then(setPlayers)
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
 
   useEffect(() => {
     apiFetch('/session/user')
@@ -62,7 +58,19 @@ export default function MainWindow() {
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="fixed">
         <Toolbar>
-          <IconButton edge="start" color="inherit" aria-label="menu" sx={{ mr: 2 }} onClick={handleMenuOpen}>
+          {/* Back button on the left if a player is selected */}
+          {selectedPlayer ? (
+            <IconButton edge="start" color="inherit" aria-label="back" sx={{ mr: 2 }} onClick={() => setSelectedPlayer(null)}>
+              <ArrowBackIcon />
+            </IconButton>
+          ) : (
+            <Box sx={{ width: 40, mr: 2 }} />
+          )}
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            ChessCrew
+          </Typography>
+          {/* Burger menu button on the right */}
+          <IconButton edge="end" color="inherit" aria-label="menu" sx={{ ml: 2 }} onClick={handleMenuOpen}>
             <MenuIcon />
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
@@ -88,9 +96,6 @@ export default function MainWindow() {
             </MenuItem>
           </Menu>
           <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            ChessCrew
-          </Typography>
         </Toolbar>
       </AppBar>
       <Toolbar /> {/* Spacer for fixed AppBar */}
@@ -116,12 +121,18 @@ export default function MainWindow() {
         </MenuItem>
       </Drawer>
       <Container sx={{ flex: 1, overflowY: 'auto', mt: 2 }}>
-        {loading ? (
+        {selectedPlayer ? (
+          <PlayerDetailsCard player={selectedPlayer} onBack={() => setSelectedPlayer(null)} />
+        ) : loading ? (
           <Typography>Loading players...</Typography>
         ) : error ? (
           <Typography color="error">{error}</Typography>
         ) : (
-          players.map(player => <PlayerCard key={player.id} player={player} />)
+          players.map(player => (
+            <div key={player.id} onClick={() => setSelectedPlayer(player)} style={{ cursor: 'pointer' }}>
+              <PlayerCard player={player} />
+            </div>
+          ))
         )}
       </Container>
     </Box>
