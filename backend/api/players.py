@@ -219,7 +219,54 @@ def get_player_notes(player_id):
         {
             'id': note.id,
             'content': note.content,
-            'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            'manual': note.manual,
+            'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
         }
         for note in notes
     ])
+
+@players_bp.route('/players/<int:player_id>/notes', methods=['POST'])
+@login_required
+def create_player_note(player_id):
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Player not found'}), 404
+    data = request.get_json(force=True)
+    content = data.get('content')
+    if not content:
+        return jsonify({'error': 'Content is required'}), 400
+    note = Note(player=player, content=content, manual=True, created_at=datetime.now())
+    db.session.add(note)
+    db.session.commit()
+    return jsonify({
+        'id': note.id,
+        'content': note.content,
+        'manual': note.manual,
+        'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+    }), 201
+
+@players_bp.route('/players/<int:player_id>/notes/<int:note_id>', methods=['PUT', 'PATCH'])
+@login_required
+def update_player_note(player_id, note_id):
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Player not found'}), 404
+    note = Note.query.get(note_id)
+    if not note:
+        return jsonify({'error': 'Note not found'}), 404
+    data = request.get_json(force=True)
+    content = data.get('content')
+    if not content:
+        return jsonify({'error': 'Content is required'}), 400
+    note.content = content
+    note.updated_at = datetime.now()
+    db.session.commit()
+    return jsonify({
+        'id': note.id,
+        'content': note.content,
+        'manual': note.manual,
+        'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+    }), 200

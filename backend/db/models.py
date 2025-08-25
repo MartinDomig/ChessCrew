@@ -61,6 +61,7 @@ class Note(db.Model):
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    manual = db.Column(db.Boolean, default=False)
 
     player = db.relationship('Player', back_populates='notes')
 
