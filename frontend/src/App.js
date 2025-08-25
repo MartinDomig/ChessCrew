@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch } from './api';
 import CreateAdmin from './CreateAdmin';
 import LoginForm from './LoginForm';
+import MainWindow from './MainWindow';
 import { CssBaseline, Container } from '@mui/material';
 
 function App() {
@@ -54,10 +55,7 @@ function App() {
         ) : !loggedIn ? (
           <LoginForm onLogin={handleLogin} />
         ) : (
-          <div>
-            <h1>ChessCrew React Frontend</h1>
-            <p>Welcome! This is your new React frontend. Connect to your backend at <code>/api</code>.</p>
-          </div>
+          <MainWindow />
         )}
       </Container>
     </>
