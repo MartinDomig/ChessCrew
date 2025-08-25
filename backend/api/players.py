@@ -44,7 +44,8 @@ def list_players():
     return jsonify([
         {
             **p.to_dict(),
-            'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in p.tags]
+            'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in p.tags],
+            'notes': [{'id': n.id, 'content': n.content, 'manual': n.manual, 'created_at': n.created_at.isoformat(), 'updated_at': n.updated_at.isoformat()} for n in p.notes]
         }
         for p in players
     ])
@@ -73,7 +74,8 @@ def get_player(player_id):
         return jsonify({'error': 'Player not found'}), 404
     return jsonify({
         **player.to_dict(),
-        'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags]
+        'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags],
+        'notes': [{'id': n.id, 'content': n.content, 'manual': n.manual, 'created_at': n.created_at.isoformat(), 'updated_at': n.updated_at.isoformat()} for n in player.notes]
     })
 
 @players_bp.route('/players/<int:player_id>', methods=['PUT', 'PATCH'])
