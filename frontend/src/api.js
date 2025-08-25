@@ -8,7 +8,7 @@ export async function apiFetch(endpoint, options = {}) {
     ...(needsJson ? { 'Content-Type': 'application/json' } : {}),
     ...(options.headers || {})
   };
-  const opts = { ...options, headers };
+  const opts = { ...options, headers, credentials: 'include' };
   const res = await fetch(`${API_URL}${endpoint}`, opts);
   if (!res.ok) {
     const text = await res.text();
