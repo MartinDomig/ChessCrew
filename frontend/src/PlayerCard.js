@@ -3,6 +3,7 @@ import { Card, CardContent, Typography, Box } from '@mui/material';
 import CategoryChip from './CategoryChip';
 import { apiFetch } from './api';
 import PlayerActiveStar from './PlayerActiveStar';
+import PlayerTags from './PlayerTags';
 
 export default function PlayerCard({ player, onStatusChange }) {
   return (
@@ -22,6 +23,7 @@ export default function PlayerCard({ player, onStatusChange }) {
           Verein: {player.club}
         </Typography>
       </CardContent>
+      <PlayerTags player={player} />
     </Card>
   );
 }
