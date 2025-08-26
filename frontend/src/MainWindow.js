@@ -32,6 +32,7 @@ export default function MainWindow() {
     setLoading(true);
     setError('');
     const param = showActiveOnly ? '?active=true' : '';
+    console.log('fetching players');
     apiFetch(`/players${param}`)
       .then(setPlayers)
       .catch(err => setError(err.message))
@@ -140,7 +141,6 @@ export default function MainWindow() {
         {selectedPlayer ? (
           <PlayerDetailsCard
             player={selectedPlayer}
-            onBack={() => setSelectedPlayer(null)}
             onStatusChange={isActive => {
               setPlayers(players => players.map(p =>
                 p.id === selectedPlayer.id ? { ...p, is_active: isActive } : p

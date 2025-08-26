@@ -7,10 +7,9 @@ import CategoryChip from './CategoryChip';
 import TagChip from './TagChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
-import Autocomplete from '@mui/material/Autocomplete';
-import PlayerTags from './PlayerTags';
+import PlayerNotes from './PlayerNotes';
 
-export default function PlayerDetailsCard({ player, onBack, onStatusChange, onPlayerUpdate }) {
+export default function PlayerDetailsCard({ player, onStatusChange, onPlayerUpdate }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -24,13 +23,9 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange, onPl
   const [playerTagsKey, setPlayerTagsKey] = useState(0);
 
   useEffect(() => {
-    setLoading(true);
-    setNotes([]);
+    setNotes(player.notes || []);
+    setLoading(false);
     setError(null);
-    apiFetch(`/players/${player.id}/notes`)
-      .then(setNotes)
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
     setEmail(player.email || '');
     setPhone(player.phone || '');
     setLocalPlayer(player);
@@ -197,26 +192,7 @@ export default function PlayerDetailsCard({ player, onBack, onStatusChange, onPl
           }
         />
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>Notizen</Typography>
-          {loading ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-              <CircularProgress size={24} sx={{ mr: 2 }} />
-              <Typography>Lade Notizen...</Typography>
-            </Box>
-          ) : error ? (
-            <Typography color="error">Fehler beim Laden der Notizen: {error}</Typography>
-          ) : notes.length === 0 ? (
-            <Typography color="text.secondary">Keine Notizen vorhanden.</Typography>
-          ) : (
-            notes.map(note => (
-              <Box key={note.id} sx={{ mb: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  {note.created_at}
-                </Typography>
-                <Typography>{note.content}</Typography>
-              </Box>
-            ))
-          )}
+          <PlayerNotes playerId={player.id} />
         </Box>
       </CardContent>
     </Card>

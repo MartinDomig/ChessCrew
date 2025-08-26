@@ -15,12 +15,16 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
           </Typography>
           <CategoryChip player={player} onClick={onCategoryClick} />
         </Box>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>
-          {`Rating: ${player.elo ?? ''} / ${player.fide_elo ?? ''}`}
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
+          {player.club} <small>{player.elo > 0 ? `ELO: ${player.elo} ${player.fide_elo > 0 ? `FIDE: ${player.fide_elo}` : ''}` : ''}</small>
         </Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>
-          Verein: {player.club}
-        </Typography>
+        {player.notes && player.notes.filter(n => n.manual).length > 0 &&
+          player.notes.filter(n => n.manual).slice(0, 2).map((note, idx) => (
+            <Typography key={note.id || idx} sx={{ fontStyle: 'italic' }}>
+              {note.content}
+            </Typography>
+          ))
+        }
         <Box
           sx={{
             display: 'flex',
