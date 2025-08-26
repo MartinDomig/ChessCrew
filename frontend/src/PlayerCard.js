@@ -5,6 +5,11 @@ import PlayerActiveStar from './PlayerActiveStar';
 import TagChip from './TagChip';
 
 export default function PlayerCard({ player, onStatusChange, onTagClick, onCategoryClick }) {
+  let playerElo = (player.elo > 0 ? `ELO: ${player.elo}` : '');
+  if(player.fide_elo > 0) {
+    playerElo += (player.elo > 0 ? ' ' : '') + `FIDE: ${player.fide_elo}`;
+  }
+
   return (
     <Card sx={{ mb: 1, p: 1, minHeight: 56, boxShadow: 1, position: 'relative' }}>
       {/* Top right PlayerActiveStar */}
@@ -23,8 +28,18 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem', mr: 2 }}>
             {player.club}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
-            {player.elo > 0 ? `ELO: ${player.elo}` : ''} {player.fide_elo > 0 ? `FIDE: ${player.fide_elo}` : ''}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              fontSize: '0.95rem',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: 120
+            }}
+          >
+            {playerElo}
           </Typography>
         </Box>
         {/* Third row: Category, Tags */}

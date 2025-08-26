@@ -3,7 +3,7 @@ import { apiFetch } from './api';
 import CreateAdmin from './CreateAdmin';
 import LoginForm from './LoginForm';
 import MainWindow from './MainWindow';
-import { CssBaseline, Container } from '@mui/material';
+import { Box, CircularProgress, CssBaseline, Container } from '@mui/material';
 
 function App() {
   const [state, setState] = useState(null);
@@ -46,12 +46,12 @@ function App() {
       <CssBaseline />
       <Container maxWidth="sm">
         {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-        {loading ? (
-          <p>Loading...</p>
+        {(loading || checkingLogin) ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+            <CircularProgress />
+          </Box>
         ) : state && state.needs_admin ? (
           <CreateAdmin onCreated={handleAdminCreated} />
-        ) : checkingLogin ? (
-          <p>Checking login...</p>
         ) : !loggedIn ? (
           <LoginForm onLogin={handleLogin} />
         ) : (

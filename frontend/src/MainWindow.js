@@ -1,58 +1,38 @@
 import React, { useEffect, useState } from 'react';
-import PlayerList from './PlayerList';
-import { AppBar, Toolbar, IconButton, Typography, Box, Container, CircularProgress, Menu, MenuItem, ListItemIcon, Drawer, Switch } from '@mui/material';
-import LogoutIcon from '@mui/icons-material/Logout';
-import FilterListIcon from '@mui/icons-material/FilterList';
+import BurgerMenu from './BurgerMenu';
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import MenuIcon from '@mui/icons-material/Menu';
-import ImportExportIcon from '@mui/icons-material/ImportExport';
-import ImportDialog from './ImportDialog';
-import PlayerCard from './PlayerCard';
-import PlayerDetailsCard from './PlayerDetailsCard';
+import Box from '@mui/material/Box';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { apiFetch } from './api';
+import PlayerList from './PlayerList';
+import PlayerDetails from './PlayerDetails';
+import ImportDialog from './ImportDialog';
 
-export default function MainWindow() {
-  const [players, setPlayers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+function MainWindow() {
   const [importOpen, setImportOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
+  const handleImportClick = () => setImportOpen(true);
+  // Dummy admin state for BurgerMenu demo
+  const [isAdmin] = useState(true);
+  const [activeOnly, setActiveOnly] = useState(false);
+  const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
+
+  // On mobile, show either master or detail
+  const showMaster = isTabletOrLarger || selectedPlayer === null;
+  const showDetail = isTabletOrLarger || selectedPlayer !== null;
+
+  const handleBack = () => setSelectedPlayer(null);
 
   useEffect(() => {
-    apiFetch('/session/user')
-      .then(data => setIsAdmin(data && data.admin))
-      .catch(() => setIsAdmin(false));
-  }, []);
-
-  const reloadPlayers = () => {
-    setLoading(true);
-    setError('');
-    const param = showActiveOnly ? '?active=true' : '';
-    console.log('fetching players');
-    apiFetch(`/players${param}`)
-      .then(setPlayers)
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
+    setSelectedPlayer(null);
     reloadPlayers();
-  }, [showActiveOnly]);
+  }, [activeOnly]);
 
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-  const handleImportClick = () => {
-    setImportOpen(true);
-    handleMenuClose();
-  };
   const handleLogout = async () => {
     try {
       await apiFetch('/logout', { method: 'POST' });
@@ -62,96 +42,60 @@ export default function MainWindow() {
     }
   };
 
+  const reloadPlayers = () => {
+    const param = activeOnly ? '?active=true' : '';
+    apiFetch(`/players${param}`)
+      .then(data => {
+        setPlayers(data);
+      })
+      .catch(err => console.error(err));
+  };
+
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <AppBar position="fixed">
+      <AppBar position="fixed" sx={{ width: '100%' }}>
         <Toolbar>
+          {!isTabletOrLarger && selectedPlayer && (
+            <IconButton edge="start" color="inherit" onClick={handleBack}>
+              <ArrowBackIcon />
+            </IconButton>
+          )}
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             ChessCrew
           </Typography>
-          <IconButton edge="end" color="inherit" aria-label="menu" sx={{ ml: 2 }} onClick={handleMenuOpen}>
-            <MenuIcon />
-          </IconButton>
-          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-            <MenuItem disabled={!isAdmin} onClick={handleImportClick}>
-              <ListItemIcon>
-                <ImportExportIcon />
-              </ListItemIcon>
-              Import Meldekartei
-            </MenuItem>
-            <MenuItem>
-              <ListItemIcon>
-                <FilterListIcon />
-              </ListItemIcon>
-              <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                Nur aktive Spieler anzeigen
-                <Switch
-                  edge="end"
-                  checked={showActiveOnly}
-                  onChange={(_, checked) => setShowActiveOnly(checked)}
-                  color="primary"
-                />
-              </Box>
-            </MenuItem>
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
-                <LogoutIcon />
-              </ListItemIcon>
-              Logout
-            </MenuItem>
-          </Menu>
-          <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={() => { setShowActiveOnly(false); reloadPlayers(); }} />
+          <BurgerMenu
+            isAdmin={isAdmin}
+            onImportClick={handleImportClick}
+            showActiveOnly={activeOnly}
+            onShowActiveChange={setActiveOnly}
+            onLogout={handleLogout}
+          />
+          <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={reloadPlayers} />
         </Toolbar>
       </AppBar>
-      <Toolbar />
-      <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-        <MenuItem onClick={() => setImportOpen(true)}>
-          <ListItemIcon><ImportExportIcon /></ListItemIcon>
-          Meldekartei importieren
-        </MenuItem>
-        <MenuItem>
-          <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            Nur aktive Spieler anzeigen
-            <Switch
-              edge="end"
-              checked={showActiveOnly}
-              onChange={(_, checked) => setShowActiveOnly(checked)}
-              color="primary"
-            />
+  {/* Add marginTop to avoid AppBar overlap */}
+  <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', mt: 8 }}>
+        {/* Master: Player List */}
+        {showMaster && (
+          <Box
+            sx={{
+              width: { xs: '100%', md: 320 },
+              borderRight: isTabletOrLarger ? '1px solid #ddd' : 'none',
+              display: { xs: selectedPlayer ? 'none' : 'block', md: 'block' },
+              height: '100%',
+              overflowY: 'auto',
+            }}
+          >
+            <PlayerList players={players} onPlayerClick={setSelectedPlayer} />
           </Box>
-        </MenuItem>
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon></ListItemIcon>
-          Logout
-        </MenuItem>
-      </Drawer>
-      <Box sx={{ flex: 1, overflowY: 'auto' }}>
-        {selectedPlayer ? (
-          <PlayerDetailsCard
-            player={selectedPlayer}
-            onStatusChange={isActive => {
-              setPlayers(players => players.map(p =>
-                p.id === selectedPlayer.id ? { ...p, is_active: isActive } : p
-              ));
-              setSelectedPlayer(sp => sp ? { ...sp, is_active: isActive } : sp);
-            }}
-          />
-        ) : loading ? (
-          <CircularProgress size={24} sx={{ mr: 2 }} />
-        ) : error ? (
-          <Typography color="error">{error}</Typography>
-        ) : (
-          <PlayerList
-            players={players}
-            onPlayerClick={setSelectedPlayer}
-            onStatusChange={(id, isActive) => {
-              setPlayers(players => players.map(p =>
-                p.id === id ? { ...p, is_active: isActive } : p
-              ));
-            }}
-          />
+        )}
+        {/* Detail: Player Details */}
+        {showDetail && selectedPlayer && (
+          <PlayerDetails player={selectedPlayer} />
         )}
       </Box>
     </Box>
   );
 }
+
+export default MainWindow;

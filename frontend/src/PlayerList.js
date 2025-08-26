@@ -1,8 +1,7 @@
 import React, { useState, useEffect, use } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import PlayerCard from './PlayerCard';
-import { Box, Paper, Chip, Autocomplete, TextField } from '@mui/material';
-import TagChip from './TagChip';
+import { Box, Autocomplete, TextField } from '@mui/material';
 import { apiFetch } from './api';
 
 export default function PlayerList({ players, onPlayerClick, onStatusChange }) {

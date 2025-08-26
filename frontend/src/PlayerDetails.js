@@ -64,6 +64,20 @@ export default function PlayerDetailsCard({ player }) {
     }
   };
 
+  const onTagDelete = async (tag) => {
+    console.log('delte tag', tag);
+    try {
+       if (window.confirm(`Tag "${tag.name}" wirklich entfernen?`)) {
+        await apiFetch(`/players/${player.id}/tags/${tag.id}`, { method: 'DELETE' });
+        const updated = await apiFetch(`/players/${player.id}`);
+        setLocalPlayer(updated);
+        setPlayerTagsKey(prev => prev + 1);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <Card sx={{ mb: 2, maxWidth: 500, mx: 'auto', position: 'relative' }}>
       <PlayerActiveStar player={player} />
@@ -165,18 +179,9 @@ export default function PlayerDetailsCard({ player }) {
           {localPlayer.tags && localPlayer.tags.map(tag => (
             <TagChip
               key={`player-${localPlayer.id}-tag-${tag.id}`}
-              tag={{ ...tag, name: tag.name ? `${tag.name} ❌` : '' }}
-              size="small"
-              onClick={async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.confirm(`Tag "${tag.name}" wirklich entfernen?`)) {
-                  await apiFetch(`/players/${player.id}/tags/${tag.id}`, { method: 'DELETE' });
-                  const updated = await apiFetch(`/players/${player.id}`);
-                  setLocalPlayer(updated);
-                  setPlayerTagsKey(k => k + 1);
-                }
-              }}
+              tag={tag}
+              onDelete={onTagDelete}
+              onClick={onTagDelete}
             />
           ))}
         </Box>
