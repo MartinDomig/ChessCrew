@@ -86,7 +86,17 @@ export default function PlayerDetailsCard({ player, onStatusChange, onPlayerUpda
         <Typography sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
           <strong>E-Mail:</strong>
           <span style={{ marginLeft: 8 }}>
-            {localPlayer.email ? <a href={`mailto:${localPlayer.email}`}>{localPlayer.email}</a> : null}
+            {localPlayer.email
+              ? localPlayer.email
+                  .split(/[,;\s]+/)
+                  .filter(e => e)
+                  .map((email, idx) => (
+                    <React.Fragment key={email}>
+                      <a href={`mailto:${email}`}>{email}</a>
+                      {idx < localPlayer.email.split(/[,;\s]+/).filter(e => e).length - 1 ? ', ' : ''}
+                    </React.Fragment>
+                  ))
+              : null}
           </span>
         </Typography>
         <Typography sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
