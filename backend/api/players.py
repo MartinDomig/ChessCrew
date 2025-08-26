@@ -177,7 +177,8 @@ def import_players_csv():
         player = Player.query.filter_by(p_number=p_number).first()
 
         # Determine female from Sex column
-        is_female = bool(row.get('Sex', '').strip())
+        sex_value = row.get('Sex', '').strip().lower()
+        is_female = sex_value in ('w', 'f')
 
         if player:
             # Update existing player and track changes
