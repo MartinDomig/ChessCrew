@@ -63,7 +63,7 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
 
   return (
     <>
-      <Box sx={{ px: 2, py: 1, background: '#fafafa', borderBottom: '1px solid #eee' }}>
+      <Box sx={{ px: 0, py: 0.5, background: '#fafafa', borderBottom: '1px solid #eee' }}>
         <Autocomplete
           multiple
           freeSolo
