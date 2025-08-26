@@ -87,7 +87,7 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
         <List
           height={window.innerHeight - 128 > 300 ? window.innerHeight - 128 : 300}
           itemCount={filteredPlayers.length}
-          itemSize={180}
+          itemSize={107}
           width={"100%"}
           style={{ maxWidth: 500, margin: "0 auto" }}
         >
