@@ -137,7 +137,7 @@ export default function MainWindow() {
           Logout
         </MenuItem>
       </Drawer>
-      <Container sx={{ flex: 1, overflowY: 'auto', mt: 2 }}>
+      <Box sx={{ flex: 1, overflowY: 'auto' }}>
         {selectedPlayer ? (
           <PlayerDetailsCard
             player={selectedPlayer}
@@ -164,7 +164,7 @@ export default function MainWindow() {
             }}
           />
         )}
-      </Container>
+      </Box>
     </Box>
   );
 }
