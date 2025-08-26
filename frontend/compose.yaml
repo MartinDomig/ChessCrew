@@ -4,7 +4,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=https://chesscrew.domig.net/api
+      - REACT_APP_API_URL=https://chesscrew-dev.domig.net/api
     volumes:
       - .:/app
     working_dir: /app
