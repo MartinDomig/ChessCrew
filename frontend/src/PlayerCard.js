@@ -6,7 +6,11 @@ import TagChip from './TagChip';
 
 export default function PlayerCard({ player, onStatusChange, onTagClick, onCategoryClick }) {
   return (
-    <Card sx={{ mb: 1, p: 1, minHeight: 56, boxShadow: 1 }}>
+    <Card sx={{ mb: 1, p: 1, minHeight: 56, boxShadow: 1, position: 'relative' }}>
+      {/* Top right PlayerActiveStar */}
+      <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
+        <PlayerActiveStar player={player} onStatusChange={onStatusChange} />
+      </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
         {/* First row: Name */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
