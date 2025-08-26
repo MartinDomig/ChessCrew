@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import StarIcon from '@mui/icons-material/Star';
 import { apiFetch } from './api';
 
-export default function PlayerActiveStar({ player, onStatusChange }) {
+export default function PlayerActiveStar({ player }) {
   const [isActive, setIsActive] = useState(player.is_active);
 
   const handleToggle = async (e) => {
@@ -13,7 +13,6 @@ export default function PlayerActiveStar({ player, onStatusChange }) {
         body: JSON.stringify({ is_active: !isActive })
       });
       setIsActive(updated.is_active);
-      if (onStatusChange) onStatusChange(updated.is_active);
     } catch (err) {
       // Optionally show error
     }

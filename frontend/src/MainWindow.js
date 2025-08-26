@@ -62,22 +62,10 @@ export default function MainWindow() {
     }
   };
 
-  const handlePlayerUpdate = (updatedPlayer) => {
-    setPlayers(players => players.map(p => p.id === updatedPlayer.id ? updatedPlayer : p));
-    setSelectedPlayer(updatedPlayer);
-  };
-
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="fixed">
         <Toolbar>
-          {selectedPlayer ? (
-            <IconButton edge="start" color="inherit" aria-label="back" sx={{ mr: 2 }} onClick={() => setSelectedPlayer(null)}>
-              <ArrowBackIcon />
-            </IconButton>
-          ) : (
-            <Box sx={{ width: 40, mr: 2 }} />
-          )}
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             ChessCrew
           </Typography>
@@ -147,7 +135,6 @@ export default function MainWindow() {
               ));
               setSelectedPlayer(sp => sp ? { ...sp, is_active: isActive } : sp);
             }}
-            onPlayerUpdate={handlePlayerUpdate}
           />
         ) : loading ? (
           <CircularProgress size={24} sx={{ mr: 2 }} />

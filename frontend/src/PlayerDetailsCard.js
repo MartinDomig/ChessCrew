@@ -9,7 +9,7 @@ import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
 import PlayerNotes from './PlayerNotes';
 
-export default function PlayerDetailsCard({ player, onStatusChange, onPlayerUpdate }) {
+export default function PlayerDetailsCard({ player }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -66,7 +66,7 @@ export default function PlayerDetailsCard({ player, onStatusChange, onPlayerUpda
 
   return (
     <Card sx={{ mb: 2, maxWidth: 500, mx: 'auto', position: 'relative' }}>
-      <PlayerActiveStar player={player} onStatusChange={onStatusChange} />
+      <PlayerActiveStar player={player} />
       <CardContent>
         <Typography color="text.secondary">
           <small>{player.p_number ? `ID: ${player.p_number}` : ''} {player.fide_number ? ` FIDE: ${player.fide_number}` : ''}</small>
@@ -175,7 +175,6 @@ export default function PlayerDetailsCard({ player, onStatusChange, onPlayerUpda
                   const updated = await apiFetch(`/players/${player.id}`);
                   setLocalPlayer(updated);
                   setPlayerTagsKey(k => k + 1);
-                  if (onPlayerUpdate) onPlayerUpdate(updated);
                 }
               }}
             />
@@ -189,7 +188,6 @@ export default function PlayerDetailsCard({ player, onStatusChange, onPlayerUpda
             const updated = await apiFetch(`/players/${player.id}`);
             setLocalPlayer(updated);
             setPlayerTagsKey(k => k + 1);
-            if (onPlayerUpdate) onPlayerUpdate(updated);
           }}
           onTagAdded={
             async () => {
@@ -197,7 +195,6 @@ export default function PlayerDetailsCard({ player, onStatusChange, onPlayerUpda
               const updated = await apiFetch(`/players/${player.id}`);
               setLocalPlayer(updated);
               setPlayerTagsKey(k => k + 1);
-              if (onPlayerUpdate) onPlayerUpdate(updated);
             }
           }
         />
