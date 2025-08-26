@@ -9,3 +9,12 @@ services:
       - .:/app
     working_dir: /app
     command: npm start
+
+  build-prod:
+    build: .
+    environment:
+      - REACT_APP_API_URL=https://chesscrew.domig.net/api
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: npm run build
