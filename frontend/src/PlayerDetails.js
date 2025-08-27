@@ -8,6 +8,7 @@ import TagChip from './TagChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
 import PlayerNotes from './PlayerNotes';
+import ContactEditModal from './ContactEditModal';
 
 export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
   const [notes, setNotes] = useState([]);
@@ -16,6 +17,9 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [email, setEmail] = useState(player.email || '');
   const [phone, setPhone] = useState(player.phone || '');
+  const [address, setAddress] = useState(player.address || '');
+  const [zip, setZip] = useState(player.zip || '');
+  const [town, setTown] = useState(player.town || '');
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [localPlayer, setLocalPlayer] = useState(player);
@@ -28,6 +32,9 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
     setError(null);
     setEmail(player.email || '');
     setPhone(player.phone || '');
+    setAddress(player.address || '');
+    setZip(player.zip || '');
+    setTown(player.town || '');
     setLocalPlayer(player);
     setModalOpen(false);
   }, [player.id]);
@@ -44,11 +51,11 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
     try {
       await apiFetch(`/players/${player.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ email, phone }),
+        body: JSON.stringify({ email, phone, address, zip, town }),
         headers: { 'Content-Type': 'application/json' },
       });
       setModalOpen(false);
-      const updated = { ...localPlayer, email, phone };
+      const updated = { ...localPlayer, email, phone, address, zip, town };
       setLocalPlayer(updated);
       if (onPlayerUpdated) onPlayerUpdated(updated);
       // Reload notes after edit
@@ -69,7 +76,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
   const onTagDelete = async (tag) => {
     console.log('delte tag', tag);
     try {
-       if (window.confirm(`Tag "${tag.name}" wirklich entfernen?`)) {
+      if (window.confirm(`Tag "${tag.name}" wirklich entfernen?`)) {
         await apiFetch(`/players/${player.id}/tags/${tag.id}`, { method: 'DELETE' });
         const updated = await apiFetch(`/players/${player.id}`);
         setLocalPlayer(updated);
@@ -78,6 +85,33 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleContactSave = async ({ email, phone, address, zip, town }) => {
+    setSaveLoading(true);
+    setSaveError(null);
+    try {
+      await apiFetch(`/players/${player.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ email, phone, address, zip, town }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      setModalOpen(false);
+      const updated = { ...localPlayer, email, phone, address, zip, town };
+      setLocalPlayer(updated);
+      if (onPlayerUpdated) onPlayerUpdated(updated);
+      setLoading(true);
+      setNotes([]);
+      setError(null);
+      apiFetch(`/players/${player.id}/notes`)
+        .then(setNotes)
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false));
+    } catch (err) {
+      setSaveError(err.message);
+    } finally {
+      setSaveLoading(false);
     }
   };
 
@@ -92,13 +126,19 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
           {player.first_name} {player.last_name} {player.female ? '(w)' : '(m)'} <CategoryChip player={player} />
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 2 }}>
-          {player.club}
+          {player.club} <small>{player.citizen}</small>
         </Typography>
         <Typography sx={{ mb: 1 }}>
             <strong>ELO:</strong> {player.elo ?? ''} / {player.fide_elo ?? ''}
         </Typography>
         <Typography sx={{ mb: 1 }}>
             <strong>Geburtsdatum:</strong> {player.birthday ? new Date(player.birthday).toLocaleDateString('de-DE') : ''}
+        </Typography>
+        <Typography sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+          <strong>Adresse:</strong>
+          <span style={{ marginLeft: 8 }}>
+            {[localPlayer.address, localPlayer.zip, localPlayer.town].filter(Boolean).join(', ')}
+          </span>
         </Typography>
         <Typography sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
           <strong>E-Mail:</strong>
@@ -133,42 +173,18 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
         {saveError && (
           <Typography color="error" sx={{ mb: 1 }}>{saveError}</Typography>
         )}
-        <Dialog open={modalOpen} onClose={() => setModalOpen(false)}>
-          <DialogTitle>Bearbeite E-Mail und Telefon</DialogTitle>
-          <DialogContent>
-            <TextField
-              label="E-Mail"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              fullWidth
-              margin="normal"
-            />
-            <TextField
-              label="Telefon"
-              type="text"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              fullWidth
-              margin="normal"
-            />
-            {saveError && (
-              <Typography color="error" sx={{ mt: 1 }}>{saveError}</Typography>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => {
-              setModalOpen(false);
-              setEmail(player.email || '');
-              setPhone(player.phone || '');
-            }}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleModalSave} disabled={saveLoading} variant="contained" color="primary">
-              {saveLoading ? 'Speichern...' : 'Speichern'}
-            </Button>
-          </DialogActions>
-        </Dialog>
+        <ContactEditModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSave={handleContactSave}
+          loading={saveLoading}
+          error={saveError}
+          initialEmail={email}
+          initialPhone={phone}
+          initialAddress={address}
+          initialZip={zip}
+          initialTown={town}
+        />
         <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 1, width: '100%' }}>
           <IconButton
             color="primary"
