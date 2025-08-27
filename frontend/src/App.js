@@ -9,6 +9,7 @@ function App() {
   const [state, setState] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [checkingLogin, setCheckingLogin] = useState(false);
 
@@ -27,8 +28,12 @@ function App() {
       apiFetch('/session/user')
         .then(data => {
           setLoggedIn(data && data.logged_in);
+          setUser(data);
         })
-        .catch(() => setLoggedIn(false))
+        .catch(() => {
+          setLoggedIn(false);
+          setUser(null);
+        })
         .finally(() => setCheckingLogin(false));
     }
   }, [state]);
@@ -39,6 +44,8 @@ function App() {
 
   const handleLogin = () => {
     setLoggedIn(true);
+    // Refetch user after login
+    apiFetch('/session/user').then(setUser);
   };
 
   return (
@@ -55,7 +62,7 @@ function App() {
         ) : !loggedIn ? (
           <LoginForm onLogin={handleLogin} />
         ) : (
-          <MainWindow />
+          <MainWindow user={user} />
         )}
       </Container>
     </>

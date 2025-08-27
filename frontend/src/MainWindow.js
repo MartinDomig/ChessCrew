@@ -13,10 +13,10 @@ import PlayerList from './PlayerList';
 import PlayerDetails from './PlayerDetails';
 import ImportDialog from './ImportDialog';
 
-function MainWindowContent() {
+function MainWindowContent({ user }) {
   const [importOpen, setImportOpen] = useState(false);
   const handleImportClick = () => setImportOpen(true);
-  const [isAdmin] = useState(true);
+  const isAdmin = user && user.admin;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
   const { players, reloadPlayers, activeOnly, setActiveOnly } = usePlayerList();
@@ -83,10 +83,10 @@ function MainWindowContent() {
   );
 }
 
-function MainWindow() {
+function MainWindow({ user }) {
   return (
     <PlayerListProvider>
-      <MainWindowContent />
+      <MainWindowContent user={user} />
     </PlayerListProvider>
   );
 }
