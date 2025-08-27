@@ -36,6 +36,9 @@ export default function LoginForm({ onLogin }) {
           fullWidth
           margin="normal"
           required
+          autoComplete="off"
+          spellCheck={false}
+          inputMode="text"
         />
         <TextField
           label="Password"
@@ -45,6 +48,9 @@ export default function LoginForm({ onLogin }) {
           fullWidth
           margin="normal"
           required
+          autoComplete="off"
+          spellCheck={false}
+          inputMode="text"
         />
         {error && <Typography color="error">{error}</Typography>}
         <Button type="submit" variant="contained" color="primary" fullWidth disabled={loading} sx={{ mt: 2 }}>
