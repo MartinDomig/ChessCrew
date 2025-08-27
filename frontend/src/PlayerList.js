@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { usePlayerList } from './PlayerListContext';
 import { FixedSizeList as List } from 'react-window';
 import PlayerCard from './PlayerCard';
 import { Box, Autocomplete, TextField } from '@mui/material';
 import { apiFetch } from './api';
 
 export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
+  const { scrollOffset, setScrollOffset } = usePlayerList();
   const [allTags, setAllTags] = useState([]);
   const [searchTags, setSearchTags] = useState([]);
   const [inputValue, setInputValue] = useState("");
@@ -62,23 +64,21 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
 
   // Ref for the List component
   const listRef = useRef(null);
-  // Store scroll offset
-  const scrollOffsetRef = useRef(0);
 
-  // Handler to preserve scroll position
+  // Handler to preserve scroll position in context
   const handlePlayerClick = (player) => {
     if (listRef.current) {
-      // Save current scroll offset
-      scrollOffsetRef.current = listRef.current.state.scrollOffset;
+      setScrollOffset(listRef.current.state.scrollOffset);
     }
     onPlayerClick(player);
-    // Restore scroll offset after UI update
-    setTimeout(() => {
-      if (listRef.current) {
-        listRef.current.scrollTo(scrollOffsetRef.current);
-      }
-    }, 0);
   };
+
+  // Restore scroll position when list is shown
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTo(scrollOffset);
+    }
+  }, [listRef, scrollOffset, players.length]);
 
   return (
     <>

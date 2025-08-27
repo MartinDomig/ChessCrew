@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { PlayerListProvider, usePlayerList } from './PlayerListContext';
 import BurgerMenu from './BurgerMenu';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -12,26 +13,19 @@ import PlayerList from './PlayerList';
 import PlayerDetails from './PlayerDetails';
 import ImportDialog from './ImportDialog';
 
-function MainWindow() {
+function MainWindowContent() {
   const [importOpen, setImportOpen] = useState(false);
   const handleImportClick = () => setImportOpen(true);
-  // Dummy admin state for BurgerMenu demo
   const [isAdmin] = useState(true);
-  const [activeOnly, setActiveOnly] = useState(false);
-  const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
+  const { players, reloadPlayers, activeOnly, setActiveOnly } = usePlayerList();
 
   // On mobile, show either master or detail
   const showMaster = isTabletOrLarger || selectedPlayer === null;
   const showDetail = isTabletOrLarger || selectedPlayer !== null;
 
   const handleBack = () => setSelectedPlayer(null);
-
-  useEffect(() => {
-    setSelectedPlayer(null);
-    reloadPlayers();
-  }, [activeOnly]);
 
   const handleLogout = async () => {
     try {
@@ -40,15 +34,6 @@ function MainWindow() {
     } catch (err) {
       // Optionally show an error message
     }
-  };
-
-  const reloadPlayers = () => {
-    const param = activeOnly ? '?active=true' : '';
-    apiFetch(`/players${param}`)
-      .then(data => {
-        setPlayers(data);
-      })
-      .catch(err => console.error(err));
   };
 
   return (
@@ -73,8 +58,8 @@ function MainWindow() {
           <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={reloadPlayers} />
         </Toolbar>
       </AppBar>
-  {/* Add marginTop to avoid AppBar overlap */}
-  <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', mt: 8 }}>
+      {/* Add marginTop to avoid AppBar overlap */}
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', mt: 8 }}>
         {/* Master: Player List */}
         {showMaster && (
           <Box
@@ -95,6 +80,14 @@ function MainWindow() {
         )}
       </Box>
     </Box>
+  );
+}
+
+function MainWindow() {
+  return (
+    <PlayerListProvider>
+      <MainWindowContent />
+    </PlayerListProvider>
   );
 }
 
