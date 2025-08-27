@@ -9,7 +9,7 @@ export function usePlayerList() {
 
 export function PlayerListProvider({ children }) {
   const [players, setPlayers] = useState([]);
-  const [activeOnly, setActiveOnly] = useState(false);
+  const [activeOnly, setActiveOnly] = useState(true);
   const [loading, setLoading] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
 
