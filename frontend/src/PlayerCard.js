@@ -27,7 +27,7 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
         {/* Second row: Club, Rating */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', mt: 0.5 }}>
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem', mr: 2 }}>
-            {player.club}
+            {player.club} <small>{player.citizen}</small>
           </Typography>
           <Typography
             variant="body2"
