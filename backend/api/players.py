@@ -28,6 +28,8 @@ KEY_TRANSLATIONS = {
     'tags': 'Tags',
     'rating': 'Wertung',
     'username': 'Benutzername',
+    'citizen': 'Staatsbuerger',
+    'address': 'Adresse'
 }
 
 @players_bp.route('/players', methods=['GET'])
