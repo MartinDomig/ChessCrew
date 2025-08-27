@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Card, CardContent, Typography, Box } from '@mui/material';
+import { Card, Typography, Box } from '@mui/material';
 import CategoryChip from './CategoryChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import TagChip from './TagChip';
+import { countryCodeToFlag } from './countryUtils';
 
 export default function PlayerCard({ player, onStatusChange, onTagClick, onCategoryClick }) {
   let playerElo = (player.elo > 0 ? `ELO: ${player.elo}` : '');
@@ -21,13 +22,13 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
         {/* First row: Name */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
-            {player.last_name} {player.first_name}
+            {player.last_name} {player.first_name} {countryCodeToFlag(player.citizen)}
           </Typography>
         </Box>
         {/* Second row: Club, Rating */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', mt: 0.5 }}>
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem', mr: 2 }}>
-            {player.club} <small>{player.citizen}</small>
+            {player.club}
           </Typography>
           <Typography
             variant="body2"

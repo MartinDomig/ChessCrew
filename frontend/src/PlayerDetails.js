@@ -9,6 +9,7 @@ import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
 import PlayerNotes from './PlayerNotes';
 import ContactEditModal from './ContactEditModal';
+import { countryCodeToFlag } from './countryUtils';
 
 export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
   const [notes, setNotes] = useState([]);
@@ -94,10 +95,10 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
           <small>{player.p_number ? `ID: ${player.p_number}` : ''} {player.fide_number ? ` FIDE: ${player.fide_number}` : ''}</small>
         </Typography>
         <Typography variant="h5">
-          {player.first_name} {player.last_name} {player.female ? '(w)' : '(m)'} <CategoryChip player={player} />
+          {player.first_name}, {player.last_name} {countryCodeToFlag(player.citizen)} {player.female ? '♛' : '♚'} <CategoryChip player={player} />
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 2 }}>
-          {player.club} <small>{player.citizen}</small>
+          {player.club}
         </Typography>
         <Typography sx={{ mb: 1 }}>
             <strong>ELO:</strong> {player.elo ?? ''} / {player.fide_elo ?? ''}
