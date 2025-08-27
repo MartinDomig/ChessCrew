@@ -10,8 +10,9 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
     playerElo += (player.elo > 0 ? ' ' : '') + `FIDE: ${player.fide_elo}`;
   }
 
+  const bgColor = player.active ? '#e3f2fd' : '#f5f7fa';
   return (
-    <Card sx={{ mb: 1, p: 1, minHeight: 56, boxShadow: 1, position: 'relative' }}>
+    <Card sx={{ mb: 1, p: 1, height: 102, position: 'relative', background: bgColor }}>
       {/* Top right PlayerActiveStar */}
       <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
         <PlayerActiveStar player={player} onStatusChange={onStatusChange} />
