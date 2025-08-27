@@ -44,35 +44,6 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
     setTagModalOpen(true);
   };
 
-  // Save handler for modal
-  const handleModalSave = async () => {
-    setSaveLoading(true);
-    setSaveError(null);
-    try {
-      await apiFetch(`/players/${player.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ email, phone, address, zip, town }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-      setModalOpen(false);
-      const updated = { ...localPlayer, email, phone, address, zip, town };
-      setLocalPlayer(updated);
-      if (onPlayerUpdated) onPlayerUpdated(updated);
-      // Reload notes after edit
-      setLoading(true);
-      setNotes([]);
-      setError(null);
-      apiFetch(`/players/${player.id}/notes`)
-        .then(setNotes)
-        .catch(err => setError(err.message))
-        .finally(() => setLoading(false));
-    } catch (err) {
-      setSaveError(err.message);
-    } finally {
-      setSaveLoading(false);
-    }
-  };
-
   const onTagDelete = async (tag) => {
     console.log('delte tag', tag);
     try {
