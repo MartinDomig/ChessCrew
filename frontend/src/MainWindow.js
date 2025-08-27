@@ -19,7 +19,7 @@ function MainWindowContent({ user }) {
   const isAdmin = user && user.admin;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
-  const { players, reloadPlayers, activeOnly, setActiveOnly } = usePlayerList();
+  const { players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly } = usePlayerList();
 
   // On mobile, show either master or detail
   const showMaster = isTabletOrLarger || selectedPlayer === null;
@@ -76,7 +76,7 @@ function MainWindowContent({ user }) {
         )}
         {/* Detail: Player Details */}
         {showDetail && selectedPlayer && (
-          <PlayerDetails player={selectedPlayer} />
+          <PlayerDetails player={selectedPlayer} onPlayerUpdated={updatePlayer} />
         )}
       </Box>
     </Box>

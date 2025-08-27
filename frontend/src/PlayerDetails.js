@@ -9,7 +9,7 @@ import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
 import PlayerNotes from './PlayerNotes';
 
-export default function PlayerDetailsCard({ player }) {
+export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -48,7 +48,9 @@ export default function PlayerDetailsCard({ player }) {
         headers: { 'Content-Type': 'application/json' },
       });
       setModalOpen(false);
-      setLocalPlayer({ ...localPlayer, email, phone });
+      const updated = { ...localPlayer, email, phone };
+      setLocalPlayer(updated);
+      if (onPlayerUpdated) onPlayerUpdated(updated);
       // Reload notes after edit
       setLoading(true);
       setNotes([]);
@@ -72,6 +74,7 @@ export default function PlayerDetailsCard({ player }) {
         const updated = await apiFetch(`/players/${player.id}`);
         setLocalPlayer(updated);
         setPlayerTagsKey(prev => prev + 1);
+        if (onPlayerUpdated) onPlayerUpdated(updated);
       }
     } catch (err) {
       console.error(err);
@@ -193,6 +196,7 @@ export default function PlayerDetailsCard({ player }) {
             const updated = await apiFetch(`/players/${player.id}`);
             setLocalPlayer(updated);
             setPlayerTagsKey(k => k + 1);
+            if (onPlayerUpdated) onPlayerUpdated(updated);
           }}
           onTagAdded={
             async () => {
@@ -200,6 +204,7 @@ export default function PlayerDetailsCard({ player }) {
               const updated = await apiFetch(`/players/${player.id}`);
               setLocalPlayer(updated);
               setPlayerTagsKey(k => k + 1);
+              if (onPlayerUpdated) onPlayerUpdated(updated);
             }
           }
         />

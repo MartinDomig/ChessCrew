@@ -24,13 +24,18 @@ export function PlayerListProvider({ children }) {
       .catch(() => setLoading(false));
   };
 
+  // Update a single player in the cached list
+  const updatePlayer = (updatedPlayer) => {
+    setPlayers(prev => prev.map(p => p.id === updatedPlayer.id ? updatedPlayer : p));
+  };
+
   useEffect(() => {
     reloadPlayers();
     // eslint-disable-next-line
   }, [activeOnly]);
 
   return (
-    <PlayerListContext.Provider value={{ players, reloadPlayers, activeOnly, setActiveOnly, loading, scrollOffset, setScrollOffset }}>
+    <PlayerListContext.Provider value={{ players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, loading, scrollOffset, setScrollOffset }}>
       {children}
     </PlayerListContext.Provider>
   );
