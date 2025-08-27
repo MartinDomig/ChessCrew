@@ -164,9 +164,11 @@ def import_players_csv():
         ('zip', 'Plz', str),
         ('town', 'Ort', str),
         ('country', 'Staat', str),
+        ('citizen', 'Staatsbuerger', str),
         ('phone', 'Telefon', str),
         ('email', 'Email', str),
         ('club', 'Verein', str),
+        ('address', 'Adresse', str)
     ]
 
     for row in reader:
@@ -179,6 +181,11 @@ def import_players_csv():
         # Determine female from Sex column
         sex_value = row.get('Sex', '').strip().lower()
         is_female = sex_value in ('w', 'f')
+
+        # Normalize names: some names are entered in all UPPERCASE.
+        for key in ['Vorname', 'Nachname', 'Verein', 'Ort', 'Staat', 'Adresse']:
+            if key in row:
+                row[key] = row[key].strip().title()
 
         if player:
             # Update existing player and track changes
