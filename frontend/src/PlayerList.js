@@ -1,4 +1,4 @@
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import PlayerCard from './PlayerCard';
 import { Box, Autocomplete, TextField } from '@mui/material';
@@ -60,6 +60,26 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
     return stringTerms.length === 0 || stringTerms.some(term => name.includes(term.toLowerCase()) || kat.includes(term.toLowerCase()));
   });
 
+  // Ref for the List component
+  const listRef = useRef(null);
+  // Store scroll offset
+  const scrollOffsetRef = useRef(0);
+
+  // Handler to preserve scroll position
+  const handlePlayerClick = (player) => {
+    if (listRef.current) {
+      // Save current scroll offset
+      scrollOffsetRef.current = listRef.current.state.scrollOffset;
+    }
+    onPlayerClick(player);
+    // Restore scroll offset after UI update
+    setTimeout(() => {
+      if (listRef.current) {
+        listRef.current.scrollTo(scrollOffsetRef.current);
+      }
+    }, 0);
+  };
+
   return (
     <>
       <Box sx={{ px: 0, py: 0.5, background: '#fafafa', borderBottom: '1px solid #eee' }}>
@@ -84,6 +104,7 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
       </Box>
       {filteredPlayers.length === 0 ? null : (
         <List
+          ref={listRef}
           height={window.innerHeight - 128 > 300 ? window.innerHeight - 128 : 300}
           itemCount={filteredPlayers.length}
           itemSize={107}
@@ -93,7 +114,7 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
           {({ index, style }) => {
             const player = filteredPlayers[index];
             return (
-              <Box key={player.id} sx={{ ...style, cursor: 'pointer' }} onClick={() => onPlayerClick(player)}>
+              <Box key={player.id} sx={{ ...style, cursor: 'pointer' }} onClick={() => handlePlayerClick(player)}>
                 <PlayerCard
                   player={player}
                   onStatusChange={isActive => onStatusChange(player.id, isActive)}
