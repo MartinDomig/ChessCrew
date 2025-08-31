@@ -41,6 +41,7 @@ class Tournament(db.Model):
     name = db.Column(db.String(80), nullable=False)
     tournament_players = db.relationship('TournamentPlayer', back_populates='tournament')
     players = db.relationship('Player', secondary='tournament_players', back_populates='tournaments')
+    games = db.relationship('Game', back_populates='tournament')
 
 class TournamentPlayer(db.Model):
     __tablename__ = 'tournament_players'
