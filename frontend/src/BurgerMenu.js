@@ -9,8 +9,9 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import Switch from '@mui/material/Switch';
 import LogoutIcon from '@mui/icons-material/Logout';
 import Box from '@mui/material/Box';
+import EmailIcon from '@mui/icons-material/Email';
 
-function BurgerMenu({ isAdmin, onImportClick, showActiveOnly, onShowActiveChange, onLogout }) {
+function BurgerMenu({ isAdmin, onImportClick, showActiveOnly, onShowActiveChange, onLogout, onExportEmail }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -22,10 +23,16 @@ function BurgerMenu({ isAdmin, onImportClick, showActiveOnly, onShowActiveChange
   
   const handleShowActiveChange = (_, checked) => {
     if (onShowActiveChange) onShowActiveChange(checked);
+    handleMenuClose();
   };
 
   const handleLogoutClick = () => {
     onLogout();
+    handleMenuClose();
+  };
+
+  const handleExportEmail = () => {
+    if (onExportEmail) onExportEmail();
     handleMenuClose();
   };
 
@@ -40,6 +47,12 @@ function BurgerMenu({ isAdmin, onImportClick, showActiveOnly, onShowActiveChange
             <ImportExportIcon />
           </ListItemIcon>
           Import Meldekartei
+        </MenuItem>
+        <MenuItem onClick={handleExportEmail}>
+          <ListItemIcon>
+            <EmailIcon />
+          </ListItemIcon>
+          Export E-Mail Liste
         </MenuItem>
         <MenuItem>
           <ListItemIcon>
