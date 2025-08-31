@@ -7,6 +7,7 @@ from flask import Flask, Blueprint, jsonify, request, current_app, session, abor
 from backend.db.models import db, Player, User, Tag, Note
 from .state import state_bp
 from .players import players_bp
+from .tournaments import tournaments_bp
 from .auth import login_required, admin_required
 
 api = Blueprint('api', __name__)
@@ -16,6 +17,7 @@ def register_blueprints(app):
     app.register_blueprint(state_bp, url_prefix='/api')
     app.register_blueprint(api, url_prefix='/api')
     app.register_blueprint(players_bp, url_prefix='/api')
+    app.register_blueprint(tournaments_bp, url_prefix='/api')
 
 
 ######
