@@ -10,8 +10,9 @@ import Switch from '@mui/material/Switch';
 import LogoutIcon from '@mui/icons-material/Logout';
 import Box from '@mui/material/Box';
 import EmailIcon from '@mui/icons-material/Email';
+import SportsScoreIcon from '@mui/icons-material/SportsScore';
 
-function BurgerMenu({ isAdmin, onImportClick, showActiveOnly, onShowActiveChange, onLogout, onExportEmail }) {
+function BurgerMenu({ isAdmin, onImportClick, onImportTournamentResults, showActiveOnly, onShowActiveChange, onLogout, onExportEmail }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
@@ -36,6 +37,11 @@ function BurgerMenu({ isAdmin, onImportClick, showActiveOnly, onShowActiveChange
     handleMenuClose();
   };
 
+  const handleImportTournamentResults = () => {
+    if (onImportTournamentResults) onImportTournamentResults();
+    handleMenuClose();
+  };
+
   return (
     <>
       <IconButton edge="end" color="inherit" aria-label="menu" sx={{ ml: 2 }} onClick={handleMenuOpen}>
@@ -47,6 +53,12 @@ function BurgerMenu({ isAdmin, onImportClick, showActiveOnly, onShowActiveChange
             <ImportExportIcon />
           </ListItemIcon>
           Import Meldekartei
+        </MenuItem>
+        <MenuItem disabled={!isAdmin} onClick={handleImportTournamentResults}>
+          <ListItemIcon>
+            <SportsScoreIcon />
+          </ListItemIcon>
+          Import Turnierergebnisse
         </MenuItem>
         <MenuItem onClick={handleExportEmail}>
           <ListItemIcon>

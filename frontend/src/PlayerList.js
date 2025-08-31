@@ -56,10 +56,11 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
         return false;
       }
     }
-    // OR logic for string search (name/category)
+    // OR logic for string search
     const name = `${player.first_name} ${player.last_name}`.toLowerCase();
     const kat = (player.kat || "").toLowerCase();
-    return stringTerms.length === 0 || stringTerms.some(term => name.includes(term.toLowerCase()) || kat.includes(term.toLowerCase()));
+    const pnr = String(player.p_number);
+    return stringTerms.length === 0 || stringTerms.some(term => name.includes(term.toLowerCase()) || kat.includes(term.toLowerCase()) || pnr.startsWith(term.toLowerCase()));
   });
 
   // Ref for the List component

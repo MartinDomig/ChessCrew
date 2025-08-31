@@ -12,11 +12,14 @@ import { apiFetch } from './api';
 import PlayerList from './PlayerList';
 import PlayerDetails from './PlayerDetails';
 import ImportDialog from './ImportDialog';
+import TournamentImportDialog from './TournamentImportDialog';
 import { exportEmailList } from './csvUtils';
 
 function MainWindowContent({ user }) {
   const [importOpen, setImportOpen] = useState(false);
   const handleImportClick = () => setImportOpen(true);
+  const [tournamentImportOpen, setTournamentImportOpen] = useState(false);
+  const handleImportTournamentResults = () => setTournamentImportOpen(true);
   const isAdmin = user && user.admin;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
@@ -52,12 +55,14 @@ function MainWindowContent({ user }) {
           <BurgerMenu
             isAdmin={isAdmin}
             onImportClick={handleImportClick}
+            onImportTournamentResults={handleImportTournamentResults}
             showActiveOnly={activeOnly}
             onShowActiveChange={setActiveOnly}
             onLogout={handleLogout}
             onExportEmail={() => exportEmailList(players)}
           />
           <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={reloadPlayers} />
+          <TournamentImportDialog open={tournamentImportOpen} onClose={() => setTournamentImportOpen(false)} onImported={reloadPlayers} />
         </Toolbar>
       </AppBar>
       {/* Add marginTop to avoid AppBar overlap */}
