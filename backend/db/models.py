@@ -29,7 +29,12 @@ class Player(db.Model):
     tags = db.relationship('Tag', secondary='player_tags', back_populates='players')
     notes = db.relationship('Note', back_populates='player')
     tournament_players = db.relationship('TournamentPlayer', back_populates='player')
-    tournaments = db.relationship('Tournament', secondary='tournament_players', back_populates='players')
+    tournaments = db.relationship(
+        'Tournament',
+        secondary='tournament_players',
+        back_populates='players',
+        overlaps='tournament_players'
+    )
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -39,37 +44,46 @@ class Tournament(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(80), nullable=False)
+    checksum = db.Column(db.String(64), nullable=False, unique=True)
     tournament_players = db.relationship('TournamentPlayer', back_populates='tournament')
-    players = db.relationship('Player', secondary='tournament_players', back_populates='tournaments')
+    players = db.relationship(
+        'Player',
+        secondary='tournament_players',
+        back_populates='tournaments',
+        overlaps='tournament_players'
+    )
     games = db.relationship('Game', back_populates='tournament')
 
 class TournamentPlayer(db.Model):
     __tablename__ = 'tournament_players'
 
-    tournament_id = db.Column(db.Integer, db.ForeignKey('tournaments.id'), primary_key=True)
-    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), primary_key=True, nullable=True)
-    player_name = db.Column(db.String(160), nullable=True)  # Store name if no player_id
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    tournament_id = db.Column(db.Integer, db.ForeignKey('tournaments.id'), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=True)
+    name = db.Column(db.String(160), nullable=True)  # Store name if no player_id
     rank = db.Column(db.Integer, nullable=True)
     points = db.Column(db.Float, nullable=True)
     tiebreak1 = db.Column(db.Float, nullable=True)
     tiebreak2 = db.Column(db.Float, nullable=True)
 
-    tournament = db.relationship('Tournament', back_populates='tournament_players')
-    player = db.relationship('Player', back_populates='tournament_players')
+    tournament = db.relationship('Tournament', back_populates='tournament_players', overlaps='players,tournaments')
+    player = db.relationship('Player', back_populates='tournament_players', overlaps="players,tournaments")
 
 class Game(db.Model):
     __tablename__ = 'games'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     tournament_id = db.Column(db.Integer, db.ForeignKey('tournaments.id'), nullable=False)
-    white_player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
-    black_player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
-    result = db.Column(db.String(10), nullable=False)  # e.g., "1-0", "0-1", "1/2-1/2"
-    moves = db.Column(db.Text, nullable=False)  # Store moves in a text format
+    round_number = db.Column(db.Integer, nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey('tournament_players.id'), nullable=False)
+    player_color = db.Column(db.String(10), nullable=True)  # e.g., "white" or "black", if known
+    opponent_id = db.Column(db.Integer, db.ForeignKey('tournament_players.id'), nullable=False)
+    result = db.Column(db.String(10), nullable=False)  # e.g., "1", "0", "1/2"
+    pgn = db.Column(db.Text, nullable=True)  # Store moves in a text format
 
     tournament = db.relationship('Tournament', back_populates='games')
-    white_player = db.relationship('Player', foreign_keys=[white_player_id])
-    black_player = db.relationship('Player', foreign_keys=[black_player_id])
+    player = db.relationship('TournamentPlayer', foreign_keys=[player_id])
+    opponent = db.relationship('TournamentPlayer', foreign_keys=[opponent_id])
 
 class User(db.Model):
     __tablename__ = 'users'
