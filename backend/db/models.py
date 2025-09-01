@@ -68,6 +68,10 @@ class TournamentPlayer(db.Model):
     tiebreak1 = db.Column(db.Float, nullable=True)
     tiebreak2 = db.Column(db.Float, nullable=True)
 
+    __mapper_args__ = {
+        'confirm_deleted_rows': False
+    }
+
     tournament = db.relationship('Tournament', back_populates='tournament_players', overlaps='players,tournaments')
     player = db.relationship('Player', back_populates='tournament_players', overlaps="players,tournaments")
 

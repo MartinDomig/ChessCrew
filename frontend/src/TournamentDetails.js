@@ -1,7 +1,9 @@
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CircularProgress from '@mui/material/CircularProgress';
+import DeleteIcon from '@mui/icons-material/Delete';
 import Paper from '@mui/material/Paper';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -14,7 +16,7 @@ import React, {useEffect, useState} from 'react';
 
 import {apiFetch} from './api';
 
-function TournamentDetails({tournament, onPlayerClick}) {
+function TournamentDetails({tournament, onPlayerClick, onDelete}) {
   const [players, setPlayers] = useState([]);
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -81,6 +83,22 @@ function TournamentDetails({tournament, onPlayerClick}) {
           .catch(err => {
             console.error('Error fetching player details:', err);
           });
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Sind Sie sicher, dass Sie dieses Turnier löschen möchten?')) {
+      try {
+        await apiFetch(`/tournaments/${tournament.id}`, { method: 'DELETE' });
+        if (onDelete) {
+          onDelete(tournament.id);
+        } else {
+          alert('Turnier erfolgreich gelöscht');
+        }
+      } catch (err) {
+        alert('Fehler beim Löschen des Turniers');
+        console.error('Error deleting tournament:', err);
+      }
+    }
   };
 
   return (
@@ -179,6 +197,13 @@ function TournamentDetails({tournament, onPlayerClick}) {
             </TableContainer>
               </CardContent>
         </Card>)}
+
+      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button variant="contained" color="error" onClick={handleDelete}>
+          <DeleteIcon sx={{ mr: 1 }} />
+          Turnier löschen
+        </Button>
+      </Box>
     </Box>
   );
 }
