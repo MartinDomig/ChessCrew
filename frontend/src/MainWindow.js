@@ -83,8 +83,6 @@ function MainWindowContent({user}) {
               <ArrowBackIcon />
             </IconButton>
           )}
-          {/* Removed ChessCrew title from app bar */}
-          {/* Tabs in AppBar, icons only */}
           <Tabs
   value = {tab} onChange = {
     (_, v) => {
@@ -120,12 +118,11 @@ sx = {
           <TournamentImportDialog open={tournamentImportOpen} onClose={() => setTournamentImportOpen(false)} onImported={
     reloadTournaments} />
     </Toolbar>
-      </AppBar>{/* Add marginTop to avoid AppBar overlap */} <
-    Box sx = {
-  {
-    flex: 1, display: 'flex', overflow: 'hidden', mt: 8
-  }
-} > {/* Master/Detail for Players */} {showPlayerMaster && (
+      </AppBar><Box sx = {
+       {
+         flex: 1, display: 'flex', overflow: 'hidden', mt: 8
+       }
+     }> {showPlayerMaster && (
           <Box
             sx={{
     width: {xs: '100%', md: 320},

@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography } from '@mui/material';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
-import { apiFetch } from './api';
+import {Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography} from '@mui/material';
+import React, {useState} from 'react';
 
-export default function TournamentImportDialog({ open, onClose, onImported }) {
+import {apiFetch} from './api';
+
+export default function TournamentImportDialog({open, onClose, onImported}) {
   const [file, setFile] = useState(null);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [date, setDate] = useState('');
+  const [location, setLocation] = useState('');
 
   const handleClose = () => {
     setFile(null);
@@ -26,17 +29,25 @@ export default function TournamentImportDialog({ open, onClose, onImported }) {
       setError('Bitte wählen Sie eine XLSX-Datei aus.');
       return;
     }
+    if (!date) {
+      setError('Bitte geben Sie ein Turnierdatum an.');
+      return;
+    }
+    if (!location) {
+      setError('Bitte geben Sie einen Turnierort an.');
+      return;
+    }
     setUploading(true);
     setError('');
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('date', date);
+    formData.append('location', location);
     try {
-      const result = await apiFetch('/tournaments-import-xlsx', {
-        method: 'POST',
-        body: formData
-      });
-  setImportResult(result.imported);
-  if (onImported) onImported();
+      const result = await apiFetch(
+          '/tournaments-import-xlsx', {method: 'POST', body: formData});
+      setImportResult(result.imported);
+      if (onImported) onImported();
     } catch (err) {
       setError('Upload fehlgeschlagen.');
     } finally {
@@ -47,37 +58,57 @@ export default function TournamentImportDialog({ open, onClose, onImported }) {
   return (
     <>
       <Dialog open={open && !importResult} onClose={handleClose}>
-        <DialogTitle>Import Meldekartei</DialogTitle>
+        <DialogTitle>Import Turnierergebnisse</DialogTitle>
         <DialogContent>
-          <Box sx={{ mt: 2 }}>
+          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Button
               variant="contained"
               component="label"
-              startIcon={<ImportExportIcon />}
-              sx={{ mb: 2 }}
-            >
-              Datei auswählen
-              <input
-                type="file"
-                accept=".xlsx"
-                hidden
+              startIcon={<ImportExportIcon />
+}
+sx = {
+  {
+    mb: 2
+  }
+} > Datei auswählen < input
+type = 'file'
+accept = '.xlsx'
+hidden
                 onChange={handleFileChange}
               />
             </Button>
             {file && (
               <Typography
-                variant="body2"
-                sx={{
-                  maxWidth: 250,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  display: 'block'
-                }}
-              >
-                {file.name}
-              </Typography>
+                variant = 'body2'
+                sx = {
+                  {
+                    maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap', display: 'block'
+                  }
+                } > {file.name} <
+                    /Typography>
             )}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                id="tournament-date"
+                label="Turnierdatum"
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                labelShrink={true}
+                fullWidth
+                sx={{ mb: 2 }}
+              / >
+                    < TextField
+                id = 'tournament-location'
+                label = 'Turnierort'
+                type = 'text'
+                value = {location} onChange = {
+                    e => setLocation(
+                        e.target.value)} placeholder = 'Ort des Turniers'
+                fullWidth
+              />
+            </Box>
             {error && <Typography color="error">{error}</Typography>}
           </Box>
         </DialogContent>
