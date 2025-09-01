@@ -186,39 +186,221 @@ def delete_game(tournament_id, game_id):
     db.session.commit()
     return '', 204
 
+def find_existing_player(name):
+    name = name.strip()
+    if not name:
+        return None
+    if ',' in name:
+        last, first = [n.strip() for n in name.split(',', 1)]
+    else:
+        parts = name.split()
+        if len(parts) == 2:
+            first, last = parts
+        elif len(parts) > 2:
+            first = parts[0]
+            last = ' '.join(parts[1:])
+        else:
+            first = name
+            last = ''
+    # Lookup 1: Lastname Firstname
+    player = Player.query.filter(
+        db.func.lower(Player.first_name) == first.lower(),
+        db.func.lower(Player.last_name) == last.lower()
+    ).first()
+    if player:
+        return player
+    # Lookup 2: Firstname Lastname
+    player = Player.query.filter(
+        db.func.lower(Player.first_name) == last.lower(),
+        db.func.lower(Player.last_name) == first.lower()
+    ).first()
+    if player:
+        return player
+    return None
+
+def parse_tournament_metadata(df, request):
+    # Tournament name is always on the second line (index 1)
+    second_row = df.iloc[1]
+    values = [str(v).strip() for v in second_row if pd.notnull(v)]
+    if len(values) == 1:
+        tournament_name = values[0].strip()
+    else:
+        raise ValueError("No tournament name found")
+
+    location = request.form.get('location')
+    date = None
+
+    # Exports can contain tournament details. If they do, we will have a line for each detail:
+    if not location:
+        for idx, row in df.iterrows():
+            if isinstance(row.values[0], str) and row.values[0].startswith('Ort :'):
+                location = row.values[0].split(':', 1)[1].strip()
+    for idx, row in df.iterrows():
+        if isinstance(row.values[0], str) and row.values[0].startswith('Datum :'):
+            date = row.values[0].split(':', 1)[1].strip()
+            date = datetime.strptime(date, '%d.%m.%Y').date() if date else None
+
+    if not date:
+        date_str = request.form.get('date')
+        date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else None
+    if not date:
+        raise ValueError("No tournament date given")
+
+    return tournament_name, location, date
+
+def find_header_row(df):
+    for idx, row in df.iterrows():
+        values = [str(v).strip() for v in row]
+        if 'Name' in values:
+            return idx
+    raise ValueError("Header row not found")
+
+def detect_round_columns(header):
+    round_columns = []
+    for col in header:
+        if '1' in col:
+            round_columns.append(col)
+            break
+    if not round_columns:
+        raise ValueError("No column found for first round")
+
+    first_round_column = round_columns[0]
+    i = 2
+    while True:
+        next_round_column = first_round_column.replace('1', str(i))
+        if next_round_column in header:
+            round_columns.append(next_round_column)
+            i += 1
+        else:
+            break
+    return round_columns
+
+def parse_players(df, header, header_row_idx, tournament, find_existing_player):
+    # first column after rounds contains wtg1
+    round_columns = detect_round_columns(header)
+    wtg1_column = header[header.index(round_columns[-1]) + 1] if round_columns else None
+    if not wtg1_column:
+        raise ValueError("No column found for Wtg1")
+    wtg2_column = header[header.index(round_columns[-1]) + 2] if round_columns else None
+    if not wtg2_column:
+        raise ValueError("No column found for Wtg2")
+    wtg3_column = header[header.index(round_columns[-1]) + 3] if round_columns else None
+
+    result_format = None
+    ranked_players = []
+    rank = 1
+
+    for i in range(header_row_idx + 1, len(df)):
+        row = [str(v).strip() for v in df.iloc[i]]
+        if not row:
+            break
+        data = dict(zip(header, [str(v).strip() for v in row]))
+        if not data.get('Name', '') or data.get('Name', '') == "nan":
+            break
+
+        name = data.get('Name', '').strip()
+        player = find_existing_player(name)
+        if player:
+            player.is_active = True
+            db.session.add(player)
+        else:
+            print('Player not found:', name)
+
+        if data.get(header[0]) != "nan":
+            rank = int(data.get(header[0], 0))
+
+        tp = TournamentPlayer(
+            tournament_id=tournament.id,
+            player_id=player.id if player else None,
+            name=name,
+            rank=rank,
+            points=float(data.get(wtg1_column, 0)),
+            tiebreak1=float(data.get(wtg2_column, 0)),
+            tiebreak2=float(data.get(wtg3_column, 0))
+        )
+        ranked_players.append(tp)
+        db.session.add(tp)
+
+        if result_format is None:
+            for r in round_columns:
+                round_result = data.get(r)
+                if re.match(r'^\d+[wsb][10½+]$', round_result):
+                    result_format = 'complex'
+                    break
+            if result_format is None:
+                result_format = 'simple'
+            print("Detected result format:", result_format)
+
+    if not ranked_players:
+        raise ValueError('No valid player data found')
+
+    return ranked_players, result_format, round_columns
+
+def parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format):
+    imported_games = 0
+    rank = 0
+    for i in range(header_row_idx + 1, len(df)):
+        row = [str(v).strip() for v in df.iloc[i]]
+        if not row:
+            break
+        data = dict(zip(header, [str(v).strip() for v in row]))
+        if not data.get('Name', '') or data.get('Name', '') == "nan":
+            break
+
+        rank += 1
+        player = ranked_players[rank - 1]
+        if not player:
+            raise ValueError(f'Player not found: {data.get(header[0], 0)}')
+
+        for r in range(len(round_columns)):
+            round_result = data.get(round_columns[r])
+            if round_result == '*':
+                continue
+
+            player_color = None
+            opponent = None
+            result = None
+
+            if result_format == 'simple':
+                opponent = ranked_players[int(r)]
+                result = round_result
+            else:
+                m = re.match(r'^(\d+)([wsb])([10½+])$', round_result)
+                if not m:
+                    print(f'Invalid round result, assuming skip: {round_result} for {player.name}')
+                    continue
+                opponent_nr = int(m.group(1))
+                opponent = ranked_players[opponent_nr - 1]
+                result = m.group(3)
+                color = m.group(2)
+                if color == 'w':
+                    player_color = 'white'
+                elif color in ['s', 'b']:
+                    player_color = 'black'
+
+            if not opponent:
+                raise ValueError(f'Invalid opponent: {round_result} for {player.name}')
+            if player.id == opponent.id:
+                raise ValueError(f'Player cannot play against themselves: {player.name}')
+            if not result:
+                raise ValueError(f'Invalid round result: {round_result} for {player.name}')
+
+            game = Game(
+                tournament_id=tournament.id,
+                player_id=player.id,
+                player_color=player_color,
+                opponent_id=opponent.id,
+                round_number=r + 1,
+                result=result
+            )
+            db.session.add(game)
+            imported_games += 1
+
+    return imported_games
+
 @tournaments_bp.route('/tournaments-import-xlsx', methods=['POST'])
 @admin_required
 def import_tournaments_xlsx():
-    def find_existing_player(name):
-        name = name.strip()
-        if not name:
-            return None
-        if ',' in name:
-            last, first = [n.strip() for n in name.split(',', 1)]
-        else:
-            parts = name.split()
-            if len(parts) == 2:
-                first, last = parts
-            elif len(parts) > 2:
-                first = parts[0]
-                last = ' '.join(parts[1:])
-            else:
-                first = name
-                last = ''
-        # Lookup 1: Lastname Firstname
-        player = Player.query.filter(
-            db.func.lower(Player.first_name) == first.lower(),
-            db.func.lower(Player.last_name) == last.lower()
-        ).first()
-        if player:
-            return player
-        # Lookup 2: Firstname Lastname
-        player = Player.query.filter(
-            db.func.lower(Player.first_name) == last.lower(),
-            db.func.lower(Player.last_name) == first.lower()
-        ).first()
-        return player
-
     if 'file' not in request.files:
         print("No file uploaded")
         return jsonify({'error': 'No file uploaded'}), 400
@@ -245,212 +427,27 @@ def import_tournaments_xlsx():
 
     try:
         df = pd.read_excel(tmp_path, header=None)
-        tournament_name = None
-        header_row_idx = None
-        imported_games = 0
-
-        # Tournament name is always on the second line (index 1)
-        second_row = df.iloc[1]
-        values = [str(v).strip() for v in second_row if pd.notnull(v)]
-        if len(values) == 1:
-            tournament_name = values[0].strip()
-        else:
-            raise ValueError("No tournament name found")
-
-        location = None
-        date = None
-
-        # Exports can contain tournament details. If they do, we will have a line for each detail:
-        if not location:
-            for idx, row in df.iterrows():
-                if isinstance(row.values[0], str) and row.values[0].startswith('Ort :'):
-                    location = row.values[0].split(':', 1)[1].strip()
-        for idx, row in df.iterrows():
-            if isinstance(row.values[0], str) and row.values[0].startswith('Datum :'):
-                date = row.values[0].split(':', 1)[1].strip()
-                date = datetime.strptime(date, '%d.%m.%Y').date() if date else None
-
-        if not date:
-            date = request.form.get('date')
-            date = datetime.strptime(date, '%Y-%m-%d').date() if date else None
-        if not date:
-            print("No tournament date given")
-            return jsonify({'error': 'No tournament date given'}), 400
-
-        # Find header row
-        for idx, row in df.iterrows():
-            values = [str(v).strip() for v in row]
-            if 'Name' in values:
-                header_row_idx = idx
-                break
-        if header_row_idx is None:
-            raise ValueError("Header row not found")
-
-        # Get header columns
+        
+        tournament_name, location, date = parse_tournament_metadata(df, request)
+        
+        header_row_idx = find_header_row(df)
         header = [str(v).strip() for v in df.iloc[header_row_idx]]
         if not header:
             raise ValueError("No valid header found")
-
-        # Detect round columns (e.g. 'Rd.1', '1.Rd', '1', etc.)
-        round_columns = []
-
-        for col in header:
-            if '1' in col:
-                round_columns.append(col)
-                break
-        if not round_columns:
-            raise ValueError("No column found for first round")
-
-        first_round_column = round_columns[0]
-        i = 2
-        while True:
-            next_round_column = first_round_column.replace('1', str(i))
-            if next_round_column in header:
-                round_columns.append(next_round_column)
-                i += 1
-            else:
-                break
-        # round_columns now contains all round columns in the header
-        
-        # first column after rounds contains wtg1
-        wtg1_column = header[header.index(round_columns[-1]) + 1] if round_columns else None
-        if not wtg1_column:
-            raise ValueError("No column found for Wtg1")
-        wtg2_column = header[header.index(round_columns[-1]) + 2] if round_columns else None
-        if not wtg2_column:
-            raise ValueError("No column found for Wtg2")
-        wtg3_column = header[header.index(round_columns[-1]) + 3] if round_columns else None
-        # no wtg3 is ok
 
         # Create tournament
         print("Creating tournament:", tournament_name)
         tournament = Tournament(name=tournament_name, checksum=checksum, date=date, location=location)
         db.session.add(tournament)
-        db.session.flush() # tournament id
-
-        result_format = None
-        ranked_players = []
-        rank = 1
-
-        # Parse player rows
-        for i in range(header_row_idx + 1, len(df)):
-            row = [str(v).strip() for v in df.iloc[i]]
-            if not row:
-                break
-            data = dict(zip(header, [str(v).strip() for v in row]))
-            if not data.get('Name', '') or data.get('Name', '') == "nan":
-                break
-
-            name = data.get('Name', '').strip()
-            player = find_existing_player(name)
-            if player:
-                player.is_active = True
-                db.session.add(player)
-            else:
-                print('Player not found:', name)
-
-            if data.get(header[0]) != "nan":
-                rank = int(data.get(header[0], 0))
-
-            tp = TournamentPlayer(
-                tournament_id=tournament.id,
-                player_id=player.id if player else None,
-                name=name,
-                rank=rank,
-                points=float(data.get(wtg1_column, 0)),
-                tiebreak1=float(data.get(wtg2_column, 0)),
-                tiebreak2=float(data.get(wtg3_column, 0))
-            )
-            ranked_players.append(tp)
-            db.session.add(tp)
-
-            if result_format is None:
-                # see if any of the results matches
-                for r in round_columns:
-                    round_result = data.get(r)
-                    if re.match(r'^\d+[wsb][10½+]$', round_result):
-                        result_format = 'complex'
-                        break
-                if result_format is None:
-                    result_format = 'simple'
-                print("Detected result format:", result_format)
-
-        # if we don't have any ranked_players here, bail out
-        if not ranked_players:
-            raise ValueError('No valid player data found')
-
         db.session.flush()
 
+        ranked_players, result_format, round_columns = parse_players(df, header, header_row_idx, tournament, find_existing_player)
+        
+        db.session.flush()
         for p in ranked_players:
             print("Ranked Player: {} - {} (ID: {})".format(p.rank, p.name, p.player_id))
 
-        # parse round columns into tournament games
-        rank = 0
-        for i in range(header_row_idx + 1, len(df)):
-            row = [str(v).strip() for v in df.iloc[i]]
-            if not row:
-                break
-            data = dict(zip(header, [str(v).strip() for v in row]))
-            if not data.get('Name', '') or data.get('Name', '') == "nan":
-                break
-
-            rank = rank + 1 # here, each row counts as "rank" even if players have equal results
-            player = ranked_players[rank - 1]
-            if not player:
-                raise ValueError(f'Player not found: {data.get(header[0], 0)}')
-
-            # iterate rounds
-            for r in range(0, len(round_columns)):
-                round_result = data.get(round_columns[r])
-
-                # if round_result is '*', skip
-                if round_result == '*':
-                    continue
-                
-                player_color = None
-                opponent = None
-                result = None
-
-                if result_format == 'simple':
-                    opponent = ranked_players[int(r)]
-                    result = round_result
-
-                else:
-                    # round result is complex: $(player_number)$(color)$(result), where:
-                    # player number can be any number (1-nn)
-                    # color can be "w" for white, "s" or "b" for black
-                    # result can be "1", "0", "½", "+"
-                    m = re.match(r'^(\d+)([wsb])([10½+])$', round_result)
-                    if not m:
-                        # assume player skipped round
-                        print(f'Invalid round result, assuming skip: {round_result} for {player.name}')
-                        continue
-                    opponent_nr = int(m.group(1)) if m else None
-                    opponent = ranked_players[opponent_nr - 1]
-                    result = m.group(3)
-                    color = m.group(2)
-                    if color == 'w':
-                        player_color = 'white'
-                    elif color in ['s', 'b']:
-                        player_color = 'black'
-                
-                if not opponent:
-                    raise ValueError(f'Invalid opponent: {round_result} for {player.name}')
-                if player.id == opponent.id:
-                    raise ValueError(f'Player cannot play against themselves: {player.name}')
-                if not result:
-                    raise ValueError(f'Invalid round result: {round_result} for {player.name}')
-
-                game = Game(
-                    tournament_id=tournament.id,
-                    player_id=player.id,
-                    player_color=player_color,
-                    opponent_id=opponent.id,
-                    round_number=r + 1,
-                    result=result
-                )
-                db.session.add(game)
-                imported_games += 1
+        imported_games = parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format)
 
         db.session.commit()
 
@@ -462,6 +459,5 @@ def import_tournaments_xlsx():
     finally:
         os.remove(tmp_path)
 
-    # Always return a valid response if no exception occurred
     return jsonify({'imported': imported_games, 'success': True}), 200
 
