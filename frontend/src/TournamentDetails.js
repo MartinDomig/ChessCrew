@@ -91,9 +91,9 @@ function TournamentDetails({tournament, onPlayerClick, onDelete}) {
         await apiFetch(`/tournaments/${tournament.id}`, { method: 'DELETE' });
         if (onDelete) {
           onDelete(tournament.id);
-        } else {
-          alert('Turnier erfolgreich gelöscht');
         }
+        // Navigate back to tournament list
+        window.history.back();
       } catch (err) {
         alert(err.message || 'Fehler beim Löschen des Turniers');
         console.error('Error deleting tournament:', err);
