@@ -177,6 +177,18 @@ def import_players_csv():
         # Only import Stamm-Spieler
         if row.get('Funktion', '').strip() != 'Stamm-Spieler':
             continue
+        
+        # Determine is_active from bis column
+        bis_str = row.get('bis', '').strip()
+        is_active = None
+        if bis_str:
+            try:
+                bis_date = datetime.strptime(bis_str, '%d.%m.%Y').date()
+                if bis_date < date.today():
+                    is_active = False
+            except Exception:
+                pass
+        
         p_number = int(row.get('PNr', 0))
         player = Player.query.filter_by(p_number=p_number).first()
 
@@ -192,6 +204,11 @@ def import_players_csv():
         if player:
             # Update existing player and track changes
             changes = []
+
+            if is_active is not None and player.is_active != is_active:
+                changes.append(f"Aktiv: '{player.is_active}' → '{is_active}'")
+                player.is_active = is_active
+            
             for attr, csv_key, cast in field_map:
                 new_value = cast(row.get(csv_key, ''))
                 old_value = getattr(player, attr)
@@ -204,6 +221,7 @@ def import_players_csv():
                 note_text += ": " + "; ".join(changes)
             note = Note(player=player, content=note_text, created_at=datetime.now())
             db.session.add(note)
+            
         else:
             # Create new player
             player = Player(
