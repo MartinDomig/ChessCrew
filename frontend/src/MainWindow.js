@@ -38,6 +38,8 @@ function MainWindowContent({user}) {
   const isAdmin = user && user.admin;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [selectedTournament, setSelectedTournament] = useState(null);
+  // Navigation stack for nested views
+  const [navigationStack, setNavigationStack] = useState([]);
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
   const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly} =
       usePlayerList();
@@ -54,11 +56,52 @@ function MainWindowContent({user}) {
       tab === 1 && (isTabletOrLarger || selectedTournament !== null);
 
   const handleBack = () => {
-    if (tab === 0)
-      setSelectedPlayer(null);
-    else
-      setSelectedTournament(null);
+    // Handle navigation stack for nested views
+    if (navigationStack.length > 0) {
+      const previousView = navigationStack[navigationStack.length - 1];
+      setNavigationStack(prev => prev.slice(0, -1));
+      
+      if (previousView.type === 'tournament') {
+        setSelectedTournament(previousView.data);
+        setSelectedPlayer(null);
+      } else if (previousView.type === 'player') {
+        setSelectedPlayer(previousView.data);
+        setSelectedTournament(null);
+      }
+    } else {
+      // Default back behavior - return to master list
+      if (tab === 0)
+        setSelectedPlayer(null);
+      else
+        setSelectedTournament(null);
+    }
   };
+
+  // Navigation helpers for nested views
+  const navigateToPlayerFromTournament = (player, tournament) => {
+    if (!isTabletOrLarger) {
+      setNavigationStack(prev => [...prev, { type: 'tournament', data: tournament }]);
+      setSelectedPlayer(player);
+      setSelectedTournament(null);
+      setTab(0); // Switch to player tab
+    }
+  };
+
+  const navigateToTournamentFromPlayer = (tournament, player) => {
+    if (!isTabletOrLarger) {
+      setNavigationStack(prev => [...prev, { type: 'player', data: player }]);
+      setSelectedTournament(tournament);
+      setSelectedPlayer(null);
+      setTab(1); // Switch to tournament tab
+    }
+  };
+
+  // Check if we're in a nested view (for back button visibility)
+  const isInNestedView = !isTabletOrLarger && (
+    (tab === 0 && selectedPlayer) || 
+    (tab === 1 && selectedTournament) ||
+    navigationStack.length > 0
+  );
 
   const handleLogout = async () => {
     try {
@@ -78,7 +121,7 @@ function MainWindowContent({user}) {
       <AppBar position='fixed' sx={{
     width: '100%' }}>
         <Toolbar>
-          {!isTabletOrLarger && ((tab === 0 && selectedPlayer) || (tab === 1 && selectedTournament)) && (
+          {isInNestedView && (
             <IconButton edge='start' color='inherit' onClick={handleBack}>
               <ArrowBackIcon />
             </IconButton>
@@ -174,8 +217,11 @@ sx = {
         )
 }
 {showPlayerDetail && selectedPlayer && (
-          <PlayerDetails player={selectedPlayer} onPlayerUpdated={
-      updatePlayer} />
+          <PlayerDetails 
+            player={selectedPlayer} 
+            onPlayerUpdated={updatePlayer}
+            onTournamentClick={navigateToTournamentFromPlayer}
+          />
         )}
         {/* Master/Detail for Tournaments */}
         {showTournamentMaster && (
@@ -223,7 +269,7 @@ sx = {
         (<TournamentDetails tournament =
           {
             selectedTournament
-          } />
+          } onPlayerClick={navigateToPlayerFromTournament} />
         )}
       </Box>
          </Box>

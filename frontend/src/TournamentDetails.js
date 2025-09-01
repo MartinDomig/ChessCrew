@@ -1,9 +1,7 @@
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CircularProgress from '@mui/material/CircularProgress';
-import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -15,9 +13,8 @@ import Typography from '@mui/material/Typography';
 import React, {useEffect, useState} from 'react';
 
 import {apiFetch} from './api';
-import PlayerDetails from './PlayerDetails';
 
-function TournamentDetails({tournament}) {
+function TournamentDetails({tournament, onPlayerClick}) {
   const [players, setPlayers] = useState([]);
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -50,24 +47,6 @@ function TournamentDetails({tournament}) {
 
   if (!tournament) return null;
 
-  // If a player is selected, show player details with back button
-  if (selectedPlayer) {
-    return (
-      <Box sx={{
-      m: 2, maxWidth: '100%' }}>
-        <Box sx={{
-      display: 'flex', alignItems: 'center', mb: 2 }}>
-          <IconButton onClick={() => setSelectedPlayer(null)} sx={{
-      mr: 1 }}>
-            <ArrowBackIcon />
-          </IconButton>
-          <Typography variant="h6">Zurück zu {tournament.name}</Typography>
-        </Box>
-        <PlayerDetails player={selectedPlayer} onPlayerUpdated={() => {}} />
-      </Box>
-    );
-  }
-
   // Format date to show only date part (YYYY-MM-DD)
   let dateStr = '';
   if (tournament.date) {
@@ -89,10 +68,15 @@ function TournamentDetails({tournament}) {
 
   const handlePlayerClick = (tp) => {
       if (!tp.player_id) return;
-      // fetch player details
+      // fetch player details and use parent navigation
       apiFetch(`/players/${tp.player_id}`)
           .then(data => {
-            setSelectedPlayer(data);
+            if (onPlayerClick) {
+              onPlayerClick(data, tournament);
+            } else {
+              // Fallback for backwards compatibility
+              setSelectedPlayer(data);
+            }
           })
           .catch(err => {
             console.error('Error fetching player details:', err);
@@ -172,8 +156,8 @@ function TournamentDetails({tournament}) {
                       {backgroundColor: '#f0f0f0', cursor: 'pointer'} :
                       {}
                 }
-              }><TableCell>{tp.rank || (index + 1)} <
-              /TableCell>
+              }>
+                <TableCell>{tp.rank || (index + 1)}</TableCell>
                         <TableCell 
                           onClick={() => handlePlayerClick(tp)}
                           sx={{ 
@@ -183,11 +167,10 @@ function TournamentDetails({tournament}) {
                           }}
                         >
                           {displayName}
-                        </TableCell >
-              <TableCell align = 'right'>{
-                  tp.points !== null ? tp.points : '-'} <
-              /TableCell>
-                        <TableCell align="right">{tieDisplay}</TableCell >
+                        </TableCell>
+                <TableCell align = 'right'>{
+                  tp.points !== null ? tp.points : '-'}</TableCell>
+                        <TableCell align="right">{tieDisplay}</TableCell>
               </TableRow>
                     );
                   })}

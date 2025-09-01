@@ -11,7 +11,7 @@ import PlayerNotes from './PlayerNotes';
 import ContactEditModal from './ContactEditModal';
 import { countryCodeToFlag } from './countryUtils';
 
-export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
+export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamentClick }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -216,8 +216,8 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
           }
         />
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
-            Turnierhistorie
+          <Typography variant="h6" sx={{ color: 'primary.main' }}>
+            Turniere
           </Typography>
           
           {tournamentsLoading && (
@@ -239,36 +239,49 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
           )}
           
           {!tournamentsLoading && tournaments.length > 0 && (
-            <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-              <Table size="small" stickyHeader sx={{ '& .MuiTableCell-root': { padding: '4px 8px' } }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Turnier</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Datum</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Ort</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Rang</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Punkte</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {tournaments.map((tournament, index) => {
-                    const dateStr = tournament.date 
-                      ? new Date(tournament.date).toLocaleDateString('de-DE')
-                      : '-';
-                    
-                    return (
-                      <TableRow key={tournament.tournament_id || index}>
-                        <TableCell>{tournament.tournament_name}</TableCell>
-                        <TableCell>{dateStr}</TableCell>
-                        <TableCell>{tournament.location || '-'}</TableCell>
-                        <TableCell align="right">{tournament.rank || '-'}</TableCell>
-                        <TableCell align="right">{tournament.points !== null ? tournament.points : '-'}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {tournaments.map((tournament, index) => {
+                const dateStr = tournament.date 
+                  ? new Date(tournament.date).toLocaleDateString('de-DE')
+                  : '';
+                
+                const locationAndDate = [tournament.location, dateStr].filter(Boolean).join(' • ');
+                
+                const resultText = [
+                  tournament.rank ? `Rang ${tournament.rank}` : null,
+                  tournament.points !== null ? `${tournament.points} Punkte` : null
+                ].filter(Boolean).join(' • ');
+                
+                return (
+                  <Card 
+                    key={tournament.tournament_id || index} 
+                    sx={{ 
+                      backgroundColor: '#fafafa',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        backgroundColor: '#f0f0f0',
+                        transform: 'translateY(-1px)',
+                        boxShadow: 2
+                      },
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                    onClick={() => onTournamentClick && onTournamentClick({ id: tournament.tournament_id, name: tournament.tournament_name })}
+                  >
+                    <CardContent sx={{ py: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
+                        {tournament.tournament_name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" >
+                        {locationAndDate || '-'}
+                      </Typography>
+                      <Typography variant="body2" color="primary.main" sx={{ fontWeight: 'medium' }}>
+                        {resultText || 'Keine Ergebnisse'}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </Box>
           )}
         </Box>
         
