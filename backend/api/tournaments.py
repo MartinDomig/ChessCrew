@@ -330,8 +330,6 @@ def import_tournaments_xlsx():
             if not player:
                 print('Player not found:', name)
 
-            print("new TournamentPlayer(id={}, player_id={}, name={})".format(tournament.id, player.id if player else None, name))
-
             tp = TournamentPlayer(
                 tournament_id=tournament.id,
                 player_id=player.id if player else None,
