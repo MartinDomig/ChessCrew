@@ -327,7 +327,10 @@ def import_tournaments_xlsx():
             data = dict(zip(header, [str(v).strip() for v in row]))
             name = data.get('Name', '').strip()
             player = find_existing_player(name)
-            if not player:
+            if player:
+                player.is_active = True
+                db.session.add(player)
+            else:
                 print('Player not found:', name)
 
             tp = TournamentPlayer(
