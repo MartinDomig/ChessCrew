@@ -45,6 +45,8 @@ class Tournament(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(80), nullable=False)
     checksum = db.Column(db.String(64), nullable=False, unique=True)
+    date = db.Column(db.Date, nullable=False)
+    location = db.Column(db.String(120), nullable=True)
     tournament_players = db.relationship('TournamentPlayer', back_populates='tournament')
     players = db.relationship(
         'Player',

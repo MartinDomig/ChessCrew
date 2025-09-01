@@ -16,12 +16,12 @@ tournaments_bp = Blueprint('tournaments', __name__)
 @tournaments_bp.route('/tournaments', methods=['GET'])
 def list_tournaments():
     tournaments = Tournament.query.all()
-    return jsonify([{'id': t.id, 'name': t.name} for t in tournaments])
+    return jsonify([{'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location} for t in tournaments])
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['GET'])
 def get_tournament(tournament_id):
     t = Tournament.query.get_or_404(tournament_id)
-    return jsonify({'id': t.id, 'name': t.name})
+    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location})
 
 @tournaments_bp.route('/tournaments', methods=['POST'])
 @admin_required
@@ -30,7 +30,7 @@ def create_tournament():
     t = Tournament(name=data['name'])
     db.session.add(t)
     db.session.commit()
-    return jsonify({'id': t.id, 'name': t.name}), 201
+    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location}), 201
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['PUT'])
 @admin_required
@@ -38,8 +38,10 @@ def update_tournament(tournament_id):
     t = Tournament.query.get_or_404(tournament_id)
     data = request.json
     t.name = data.get('name', t.name)
+    t.date = data.get('date', t.date)
+    t.location = data.get('location', t.location)
     db.session.commit()
-    return jsonify({'id': t.id, 'name': t.name})
+    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location})
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['DELETE'])
 @admin_required
