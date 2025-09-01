@@ -295,3 +295,32 @@ def delete_player_note(player_id, note_id):
     db.session.delete(note)
     db.session.commit()
     return jsonify({'message': 'Note deleted successfully'}), 200
+
+@players_bp.route('/players/<int:player_id>/tournaments', methods=['GET'])
+@login_required
+def get_player_tournaments(player_id):
+    from backend.db.models import TournamentPlayer, Tournament
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({'error': 'Player not found'}), 404
+    
+    # Get all tournament participations for this player
+    tournament_players = db.session.query(TournamentPlayer, Tournament)\
+        .join(Tournament, TournamentPlayer.tournament_id == Tournament.id)\
+        .filter(TournamentPlayer.player_id == player_id)\
+        .order_by(Tournament.date.desc())\
+        .all()
+    
+    return jsonify([
+        {
+            'tournament_id': tournament.id,
+            'tournament_name': tournament.name,
+            'date': tournament.date.isoformat() if tournament.date else None,
+            'location': tournament.location,
+            'rank': tp.rank,
+            'points': tp.points,
+            'tiebreak1': tp.tiebreak1,
+            'tiebreak2': tp.tiebreak2
+        }
+        for tp, tournament in tournament_players
+    ])
