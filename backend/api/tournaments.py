@@ -261,15 +261,15 @@ def import_tournaments_xlsx():
         date = None
 
         # Exports can contain tournament details. If they do, we will have a line for each detail:
+        if not location:
+            for idx, row in df.iterrows():
+                if isinstance(row.values[0], str) and row.values[0].startswith('Ort :'):
+                    location = row.values[0].split(':', 1)[1].strip()
         for idx, row in df.iterrows():
-            if isinstance(row.values[0], str) and row.values[0].startswith('Ort :'):
-                location = row.values[0].split(':', 1)[1].strip()
             if isinstance(row.values[0], str) and row.values[0].startswith('Datum :'):
                 date = row.values[0].split(':', 1)[1].strip()
                 date = datetime.strptime(date, '%d.%m.%Y').date() if date else None
 
-        if not location:
-            location = request.form.get('location')
         if not date:
             date = request.form.get('date')
             date = datetime.strptime(date, '%Y-%m-%d').date() if date else None

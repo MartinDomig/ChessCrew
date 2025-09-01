@@ -33,16 +33,14 @@ export default function TournamentImportDialog({open, onClose, onImported}) {
       setError('Bitte geben Sie ein Turnierdatum an.');
       return;
     }
-    if (!location) {
-      setError('Bitte geben Sie einen Turnierort an.');
-      return;
-    }
     setUploading(true);
     setError('');
     const formData = new FormData();
     formData.append('file', file);
     formData.append('date', date);
-    formData.append('location', location);
+    if (location) {
+      formData.append('location', location);
+    }
     try {
       const result = await apiFetch(
           '/tournaments-import-xlsx', {method: 'POST', body: formData});
