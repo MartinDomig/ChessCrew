@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { IconButton, Card, CardContent, Typography, Button, Box, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
+import { IconButton, Card, CardContent, Typography, Button, Box, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import TagManager from './TagManager';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditIcon from '@mui/icons-material/Edit';
@@ -26,6 +26,9 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
   const [localPlayer, setLocalPlayer] = useState(player);
   const [tagModalOpen, setTagModalOpen] = useState(false);
   const [playerTagsKey, setPlayerTagsKey] = useState(0);
+  const [tournaments, setTournaments] = useState([]);
+  const [tournamentsLoading, setTournamentsLoading] = useState(false);
+  const [tournamentsError, setTournamentsError] = useState(null);
 
   useEffect(() => {
     setNotes(player.notes || []);
@@ -38,7 +41,23 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
     setTown(player.town || '');
     setLocalPlayer(player);
     setModalOpen(false);
+    
+    // Fetch tournament history
+    fetchTournaments();
   }, [player.id]);
+
+  const fetchTournaments = async () => {
+    setTournamentsLoading(true);
+    setTournamentsError(null);
+    try {
+      const data = await apiFetch(`/players/${player.id}/tournaments`);
+      setTournaments(data);
+    } catch (err) {
+      setTournamentsError(err.message);
+    } finally {
+      setTournamentsLoading(false);
+    }
+  };
 
   // Fetch all tags when modal opens
   const handleOpenTagModal = () => {
@@ -196,6 +215,63 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated }) {
             }
           }
         />
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+            Turnierhistorie
+          </Typography>
+          
+          {tournamentsLoading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+              <CircularProgress />
+            </Box>
+          )}
+          
+          {tournamentsError && (
+            <Typography color="error" sx={{ mb: 2 }}>
+              {tournamentsError}
+            </Typography>
+          )}
+          
+          {!tournamentsLoading && tournaments.length === 0 && (
+            <Typography color="text.secondary">
+              Keine Turniere gefunden.
+            </Typography>
+          )}
+          
+          {!tournamentsLoading && tournaments.length > 0 && (
+            <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+              <Table size="small" stickyHeader sx={{ '& .MuiTableCell-root': { padding: '4px 8px' } }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Turnier</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Datum</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Ort</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Rang</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>Punkte</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tournaments.map((tournament, index) => {
+                    const dateStr = tournament.date 
+                      ? new Date(tournament.date).toLocaleDateString('de-DE')
+                      : '-';
+                    
+                    return (
+                      <TableRow key={tournament.tournament_id || index}>
+                        <TableCell>{tournament.tournament_name}</TableCell>
+                        <TableCell>{dateStr}</TableCell>
+                        <TableCell>{tournament.location || '-'}</TableCell>
+                        <TableCell align="right">{tournament.rank || '-'}</TableCell>
+                        <TableCell align="right">{tournament.points !== null ? tournament.points : '-'}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Box>
+        
         <Box sx={{ mt: 4 }}>
           <PlayerNotes playerId={player.id} />
         </Box>
