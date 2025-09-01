@@ -186,7 +186,7 @@ def delete_game(tournament_id, game_id):
     db.session.commit()
     return '', 204
 
-def find_existing_player(name):
+def find_existing_player(name, shuffling=False):
     name = name.strip()
     if not name:
         return None
@@ -218,11 +218,20 @@ def find_existing_player(name):
         return player
 
     # if name contains Ae, ae, Oe, oe, Ue, ue replace with umlauts and try again
-    name_with_umlauts = name.replace('Ae', 'Ä').replace('ae', 'ä').replace('Oe', 'Ö').replace('oe', 'ö').replace('Ue', 'Ü').replace('ue', 'ü')
-    if name_with_umlauts != name:
+    name_with_umlauts = name.lower().replace('ae', 'ä').replace('oe', 'ö').replace('ue', 'ü').replace('sz', 'ß')
+    if name_with_umlauts != name.lower():
         player = find_existing_player(name_with_umlauts)
         if player:
             return player
+    
+    if not shuffling:
+        # shuffle name parts: move the first part to the last
+        name_parts = name.split()
+        for i in range(len(name_parts)):
+            shuffled_name = ' '.join(name_parts[i:] + name_parts[:i])
+            player = find_existing_player(shuffled_name, shuffling=True)
+            if player:
+                return player
 
     return None
 
