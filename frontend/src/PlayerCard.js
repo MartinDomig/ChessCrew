@@ -53,7 +53,7 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
                 key={`player-${player.id}-tag-${tag.id}`}
                 tag={tag}
                 size="small"
-                onClick={onTagClick ? (e => { e.preventDefault(); e.stopPropagation(); onTagClick(tag); }) : undefined}
+                onClick={onTagClick ? (tag => onTagClick(tag)) : undefined}
               />
             ))}
           </Box>
