@@ -216,6 +216,14 @@ def find_existing_player(name):
     ).first()
     if player:
         return player
+
+    # if name contains Ae, ae, Oe, oe, Ue, ue replace with umlauts and try again
+    name_with_umlauts = name.replace('Ae', 'Ä').replace('ae', 'ä').replace('Oe', 'Ö').replace('oe', 'ö').replace('Ue', 'Ü').replace('ue', 'ü')
+    if name_with_umlauts != name:
+        player = find_existing_player(name_with_umlauts)
+        if player:
+            return player
+
     return None
 
 def parse_tournament_metadata(df, request):
