@@ -1,57 +1,106 @@
-import React, { useState } from 'react';
-import { PlayerListProvider, usePlayerList } from './PlayerListContext';
-import BurgerMenu from './BurgerMenu';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import PeopleIcon from '@mui/icons-material/People';
 import AppBar from '@mui/material/AppBar';
+import Box from '@mui/material/Box';
+import IconButton from '@mui/material/IconButton';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import Box from '@mui/material/Box';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { apiFetch } from './api';
-import PlayerList from './PlayerList';
-import PlayerDetails from './PlayerDetails';
-import ImportDialog from './ImportDialog';
-import TournamentImportDialog from './TournamentImportDialog';
-import { exportEmailList } from './csvUtils';
+import React, {useState} from 'react';
 
-function MainWindowContent({ user }) {
+import {apiFetch} from './api';
+import BurgerMenu from './BurgerMenu';
+import {exportEmailList} from './csvUtils';
+import ImportDialog from './ImportDialog';
+import PlayerDetails from './PlayerDetails';
+import PlayerList from './PlayerList';
+import {PlayerListProvider, usePlayerList} from './PlayerListContext';
+import TournamentDetails from './TournamentDetails';
+import TournamentImportDialog from './TournamentImportDialog';
+import TournamentList from './TournamentList';
+import {TournamentListProvider, useTournamentList} from './TournamentListContext';
+
+function MainWindowContent({user}) {
+  // Tab state: 0 = players, 1 = tournaments
+  const [tab, setTab] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
   const handleImportClick = () => setImportOpen(true);
   const [tournamentImportOpen, setTournamentImportOpen] = useState(false);
   const handleImportTournamentResults = () => setTournamentImportOpen(true);
   const isAdmin = user && user.admin;
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [selectedTournament, setSelectedTournament] = useState(null);
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
-  const { players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly } = usePlayerList();
+  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly} =
+      usePlayerList();
+  const {tournaments, reloadTournaments} = useTournamentList();
 
-  // On mobile, show either master or detail
-  const showMaster = isTabletOrLarger || selectedPlayer === null;
-  const showDetail = isTabletOrLarger || selectedPlayer !== null;
+  // On mobile, show either master or detail for current tab
+  const showPlayerMaster =
+      tab === 0 && (isTabletOrLarger || selectedPlayer === null);
+  const showPlayerDetail =
+      tab === 0 && (isTabletOrLarger || selectedPlayer !== null);
+  const showTournamentMaster =
+      tab === 1 && (isTabletOrLarger || selectedTournament === null);
+  const showTournamentDetail =
+      tab === 1 && (isTabletOrLarger || selectedTournament !== null);
 
-  const handleBack = () => setSelectedPlayer(null);
+  const handleBack = () => {
+    if (tab === 0)
+      setSelectedPlayer(null);
+    else
+      setSelectedTournament(null);
+  };
 
   const handleLogout = async () => {
     try {
-      await apiFetch('/logout', { method: 'POST' });
+      await apiFetch('/logout', {method: 'POST'});
       window.location.reload();
     } catch (err) {
       // Optionally show an error message
     }
   };
 
+  // Tab icons for mobile UI
+  const tabIcons = [<PeopleIcon />, <EmojiEventsIcon />];
+
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <AppBar position="fixed" sx={{ width: '100%' }}>
+    <Box sx={{
+    height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <AppBar position='fixed' sx={{
+    width: '100%' }}>
         <Toolbar>
-          {!isTabletOrLarger && selectedPlayer && (
-            <IconButton edge="start" color="inherit" onClick={handleBack}>
+          {!isTabletOrLarger && ((tab === 0 && selectedPlayer) || (tab === 1 && selectedTournament)) && (
+            <IconButton edge='start' color='inherit' onClick={handleBack}>
               <ArrowBackIcon />
             </IconButton>
           )}
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             ChessCrew
           </Typography>
+          {/* Tabs in AppBar, icons only */}
+          <Tabs
+  value = {tab} onChange = {
+    (_, v) => {
+      setTab(v);
+      setSelectedPlayer(null);
+      setSelectedTournament(null);
+    }
+  } sx = {
+    { minHeight: 48 }
+  } textColor = 'inherit'
+  indicatorColor = 'secondary'
+            slotProps={{
+    indicator: {style: {height: 3}} }}
+          >
+            <Tab icon={<PeopleIcon />} aria-label='Players' sx={
+    { minWidth: 48 }} />
+            <Tab icon={<EmojiEventsIcon />} aria-label='Tournaments' sx={
+    { minWidth: 48 }} />
+          </Tabs>
           <BurgerMenu
             isAdmin={isAdmin}
             onImportClick={handleImportClick}
@@ -59,16 +108,18 @@ function MainWindowContent({ user }) {
             showActiveOnly={activeOnly}
             onShowActiveChange={setActiveOnly}
             onLogout={handleLogout}
-            onExportEmail={() => exportEmailList(players)}
+            onExportEmail={
+    () => exportEmailList(players)}
           />
           <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={reloadPlayers} />
-          <TournamentImportDialog open={tournamentImportOpen} onClose={() => setTournamentImportOpen(false)} onImported={reloadPlayers} />
+          <TournamentImportDialog open={tournamentImportOpen} onClose={() => setTournamentImportOpen(false)} onImported={
+    reloadTournaments} />
         </Toolbar>
       </AppBar>
       {/* Add marginTop to avoid AppBar overlap */}
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', mt: 8 }}>
-        {/* Master: Player List */}
-        {showMaster && (
+        {/* Master/Detail for Players */}
+        {showPlayerMaster && (
           <Box
             sx={{
               width: { xs: '100%', md: 320 },
@@ -81,21 +132,45 @@ function MainWindowContent({ user }) {
             <PlayerList players={players} onPlayerClick={setSelectedPlayer} />
           </Box>
         )}
-        {/* Detail: Player Details */}
-        {showDetail && selectedPlayer && (
+        {showPlayerDetail && selectedPlayer && (
           <PlayerDetails player={selectedPlayer} onPlayerUpdated={updatePlayer} />
+        )
+}
+{ /* Master/Detail for Tournaments */
+}
+{showTournamentMaster && (
+          <Box
+            sx={{
+    width: {xs: '100%', md: 320},
+        borderRight: isTabletOrLarger ? '1px solid #ddd' : 'none',
+        display: {xs: selectedTournament ? 'none' : 'block', md: 'block'},
+        height: '100%', overflowY: 'auto',
+            }}
+          >
+            <TournamentList tournaments={tournaments} onTournamentClick={
+    setSelectedTournament} />
+          </Box>
+        )
+}
+{
+  showTournamentDetail && selectedTournament &&
+      (<TournamentDetails tournament =
+        {
+          selectedTournament
+        } />
         )}
       </Box>
-    </Box>
+       </Box>
   );
 }
 
 function MainWindow({ user }) {
   return (
     <PlayerListProvider>
-      <MainWindowContent user={user} />
-    </PlayerListProvider>
-  );
+      <TournamentListProvider>
+        <MainWindowContent user={user} />
+       </TournamentListProvider>
+    </PlayerListProvider>);
 }
 
 export default MainWindow;
