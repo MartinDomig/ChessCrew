@@ -46,7 +46,7 @@ def update_tournament(tournament_id):
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['DELETE'])
 @admin_required
 def delete_tournament(tournament_id):
-    t = Tournament.query.get_or_404(tournament_id)
+    t = Tournament.query.options(db.joinedload(Tournament.tournament_players), db.joinedload(Tournament.games)).get_or_404(tournament_id)
     db.session.delete(t)
     db.session.commit()
     return '', 204
