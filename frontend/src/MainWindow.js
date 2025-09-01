@@ -96,6 +96,12 @@ function MainWindowContent({user}) {
     }
   };
 
+  const handleTournamentDelete = (tournament_id) => {
+    if (selectedTournament && selectedTournament.id === tournament_id) {
+      setSelectedTournament(null);
+    }
+  };
+
   // Check if we're in a nested view (for back button visibility)
   const isInNestedView = !isTabletOrLarger && (
     (tab === 0 && selectedPlayer) || 
@@ -266,10 +272,9 @@ sx = {
 }
 {
     showTournamentDetail && selectedTournament &&
-        (<TournamentDetails tournament =
-          {
-            selectedTournament
-          } onPlayerClick={navigateToPlayerFromTournament} />
+        (<TournamentDetails tournament={selectedTournament}
+          onPlayerClick={navigateToPlayerFromTournament}
+          onDelete={handleTournamentDelete} />
         )}
       </Box>
          </Box>

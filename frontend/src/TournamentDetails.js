@@ -92,8 +92,6 @@ function TournamentDetails({tournament, onPlayerClick, onDelete}) {
         if (onDelete) {
           onDelete(tournament.id);
         }
-        // Navigate back to tournament list
-        window.history.back();
       } catch (err) {
         alert(err.message || 'Fehler beim Löschen des Turniers');
         console.error('Error deleting tournament:', err);
