@@ -249,7 +249,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
                 
                 const resultText = [
                   tournament.rank ? `Rang ${tournament.rank}` : null,
-                  tournament.points !== null ? `${tournament.points} Punkte` : null
+                  tournament.points !== null && tournament.games_played !== undefined ? `${tournament.points}/${tournament.games_played}` : null
                 ].filter(Boolean).join(' • ');
                 
                 return (
