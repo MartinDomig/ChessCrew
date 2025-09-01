@@ -1,9 +1,14 @@
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import EmailIcon from '@mui/icons-material/Email';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ImportExportIcon from '@mui/icons-material/ImportExport';
 import PeopleIcon from '@mui/icons-material/People';
+import SportsScoreIcon from '@mui/icons-material/SportsScore';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
+import Switch from '@mui/material/Switch';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Toolbar from '@mui/material/Toolbar';
@@ -78,9 +83,7 @@ function MainWindowContent({user}) {
               <ArrowBackIcon />
             </IconButton>
           )}
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            ChessCrew
-          </Typography>
+          {/* Removed ChessCrew title from app bar */}
           {/* Tabs in AppBar, icons only */}
           <Tabs
   value = {tab} onChange = {
@@ -96,71 +99,137 @@ function MainWindowContent({user}) {
             slotProps={{
     indicator: {style: {height: 3}} }}
           >
-            <Tab icon={<PeopleIcon />} aria-label='Players' sx={
+            <Tab icon={<PeopleIcon />} sx={
     { minWidth: 48 }} />
-            <Tab icon={<EmojiEventsIcon />} aria-label='Tournaments' sx={
-    { minWidth: 48 }} />
-          </Tabs>
-          <BurgerMenu
-            isAdmin={isAdmin}
-            onImportClick={handleImportClick}
-            onImportTournamentResults={handleImportTournamentResults}
-            showActiveOnly={activeOnly}
-            onShowActiveChange={setActiveOnly}
-            onLogout={handleLogout}
-            onExportEmail={
-    () => exportEmailList(players)}
-          />
-          <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={reloadPlayers} />
+            <Tab icon={<EmojiEventsIcon />
+}
+sx = {
+  {
+    minWidth: 48
+  }
+} />
+          </Tabs > <Box sx = {
+       {
+         ml: 'auto'
+       }
+     }><BurgerMenu onLogout = {handleLogout} />
+          </Box>
+    <ImportDialog open = {importOpen} onClose =
+         {() => setImportOpen(false)} onImported =
+             {reloadPlayers} />
           <TournamentImportDialog open={tournamentImportOpen} onClose={() => setTournamentImportOpen(false)} onImported={
     reloadTournaments} />
-        </Toolbar>
-      </AppBar>
-      {/* Add marginTop to avoid AppBar overlap */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', mt: 8 }}>
-        {/* Master/Detail for Players */}
-        {showPlayerMaster && (
-          <Box
-            sx={{
-              width: { xs: '100%', md: 320 },
-              borderRight: isTabletOrLarger ? '1px solid #ddd' : 'none',
-              display: { xs: selectedPlayer ? 'none' : 'block', md: 'block' },
-              height: '100%',
-              overflowY: 'auto',
-            }}
-          >
-            <PlayerList players={players} onPlayerClick={setSelectedPlayer} />
-          </Box>
-        )}
-        {showPlayerDetail && selectedPlayer && (
-          <PlayerDetails player={selectedPlayer} onPlayerUpdated={updatePlayer} />
-        )
-}
-{ /* Master/Detail for Tournaments */
-}
-{showTournamentMaster && (
+    </Toolbar>
+      </AppBar>{/* Add marginTop to avoid AppBar overlap */} <
+    Box sx = {
+  {
+    flex: 1, display: 'flex', overflow: 'hidden', mt: 8
+  }
+} > {/* Master/Detail for Players */} {showPlayerMaster && (
           <Box
             sx={{
     width: {xs: '100%', md: 320},
         borderRight: isTabletOrLarger ? '1px solid #ddd' : 'none',
-        display: {xs: selectedTournament ? 'none' : 'block', md: 'block'},
-        height: '100%', overflowY: 'auto',
+        display: {xs: selectedPlayer ? 'none' : 'block', md: 'block'},
+        height: '100%', overflowY: 'auto', position: 'relative',
             }}
           >
+            {/* Player-specific actions bar */}
+            <Box sx={{
+    display: 'flex', gap: 1, p: 1, position: 'sticky', top: 0, zIndex: 1,
+        background: '#fafafa', borderBottom: '1px solid #eee',
+        alignItems: 'center'
+            }}>
+              {isAdmin && (
+                <IconButton
+            color = 'primary'
+            onClick = {handleImportClick} size = 'small'
+            title = 'Import Meldekartei'
+            sx = {
+              {
+                p: 0.5
+              }
+            } > <ImportExportIcon fontSize = 'small' />
+                </IconButton>
+              )}
+              <IconButton 
+                color="primary" 
+                onClick={() => exportEmailList(players)} 
+                size="small" 
+                title="Export E-Mail Liste"
+                sx={{ p: 0.5 }}
+              >
+                <EmailIcon fontSize="small" />
+                </IconButton>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+                <FilterListIcon fontSize="small" color="action" /><
+                Switch
+            edge = 'end'
+            checked = {activeOnly} onChange = {
+                (_, checked) => setActiveOnly(checked)} color = 'primary'
+                  size='small'
+                />
+              </Box>
+            </Box>
+            <PlayerList players={players} onPlayerClick={
+    setSelectedPlayer} />
+          </Box>
+        )
+}
+{showPlayerDetail && selectedPlayer && (
+          <PlayerDetails player={selectedPlayer} onPlayerUpdated={
+      updatePlayer} />
+        )}
+        {/* Master/Detail for Tournaments */}
+        {showTournamentMaster && (
+          <Box
+            sx={{
+              width: { xs: '100%', md: 320 },
+              borderRight: isTabletOrLarger ? '1px solid #ddd' : 'none',
+              display: { xs: selectedTournament ? 'none' : 'block', md: 'block' },
+              height: '100%', 
+              overflowY: 'auto',
+              position: 'relative',
+            }}
+          >
+            {/* Tournament-specific actions bar */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 1, 
+              p: 1, 
+              position: 'sticky', 
+              top: 0, 
+              zIndex: 1, 
+              background: '#fafafa', 
+              borderBottom: '1px solid #eee',
+              alignItems: 'center'
+            }}>
+              {isAdmin && (
+                <IconButton 
+                  color="primary" 
+                  onClick={handleImportTournamentResults} 
+                  size="small" 
+                  title="Import Turnierergebnisse"
+                  sx={{ p: 0.5 }}
+                >
+                  <SportsScoreIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
             <TournamentList tournaments={tournaments} onTournamentClick={
-    setSelectedTournament} />
+      setSelectedTournament} />
           </Box>
         )
 }
 {
-  showTournamentDetail && selectedTournament &&
-      (<TournamentDetails tournament =
-        {
-          selectedTournament
-        } />
+    showTournamentDetail && selectedTournament &&
+        (<TournamentDetails tournament =
+          {
+            selectedTournament
+          } />
         )}
       </Box>
-       </Box>
+         </Box>
   );
 }
 
@@ -169,7 +238,7 @@ function MainWindow({ user }) {
     <PlayerListProvider>
       <TournamentListProvider>
         <MainWindowContent user={user} />
-       </TournamentListProvider>
+         </TournamentListProvider>
     </PlayerListProvider>);
 }
 
