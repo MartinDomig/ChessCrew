@@ -47,14 +47,14 @@ class Tournament(db.Model):
     checksum = db.Column(db.String(64), nullable=False, unique=True)
     date = db.Column(db.Date, nullable=False)
     location = db.Column(db.String(120), nullable=True)
-    tournament_players = db.relationship('TournamentPlayer', back_populates='tournament')
+    tournament_players = db.relationship('TournamentPlayer', back_populates='tournament', cascade="all, delete-orphan")
     players = db.relationship(
         'Player',
         secondary='tournament_players',
         back_populates='tournaments',
         overlaps='tournament_players'
     )
-    games = db.relationship('Game', back_populates='tournament')
+    games = db.relationship('Game', back_populates='tournament', cascade="all, delete-orphan")
 
 class TournamentPlayer(db.Model):
     __tablename__ = 'tournament_players'
