@@ -17,5 +17,8 @@ export async function apiFetch(endpoint, options = {}) {
     const text = await res.text();
     throw new Error(text || 'Network response was not ok');
   }
+  if (res.status === 204) {
+    return null;
+  }
   return res.json();
 }
