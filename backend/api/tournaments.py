@@ -15,7 +15,7 @@ tournaments_bp = Blueprint('tournaments', __name__)
 # --- Tournament Endpoints ---
 @tournaments_bp.route('/tournaments', methods=['GET'])
 def list_tournaments():
-    tournaments = Tournament.query.all()
+    tournaments = Tournament.query.order_by(Tournament.date.desc()).all()
     return jsonify([{'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location} for t in tournaments])
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['GET'])
@@ -257,18 +257,15 @@ def import_tournaments_xlsx():
         else:
             raise ValueError("No tournament name found")
 
-        # Exports can contain tournament details. If they do, we will have a line for each detail:
-        # Datum: dd.mm.yyyy
-        # Ort: Musterstadt
-        # Try to search for location and date in data.
         location = None
         date = None
 
+        # Exports can contain tournament details. If they do, we will have a line for each detail:
         for idx, row in df.iterrows():
-            if 'Ort:' in row.values:
-                location = row[row.values == 'Ort:'].index[0]
-            if 'Datum:' in row.values:
-                date = row[row.values == 'Datum:'].index[0]
+            if isinstance(row.values[0], str) and row.values[0].startswith('Ort :'):
+                location = row.values[0].split(':', 1)[1].strip()
+            if isinstance(row.values[0], str) and row.values[0].startswith('Datum :'):
+                date = row.values[0].split(':', 1)[1].strip()
                 date = datetime.strptime(date, '%d.%m.%Y').date() if date else None
 
         if not location:
@@ -333,14 +330,17 @@ def import_tournaments_xlsx():
 
         result_format = None
         ranked_players = []
+        rank = 1
 
         # Parse player rows
         for i in range(header_row_idx + 1, len(df)):
             row = [str(v).strip() for v in df.iloc[i]]
-            if not row or not str(row[0]).strip().isdigit():
+            if not row:
+                break
+            data = dict(zip(header, [str(v).strip() for v in row]))
+            if not data.get('Name', '') or data.get('Name', '') == "nan":
                 break
 
-            data = dict(zip(header, [str(v).strip() for v in row]))
             name = data.get('Name', '').strip()
             player = find_existing_player(name)
             if player:
@@ -349,11 +349,14 @@ def import_tournaments_xlsx():
             else:
                 print('Player not found:', name)
 
+            if data.get(header[0]) != "nan":
+                rank = int(data.get(header[0], 0))
+
             tp = TournamentPlayer(
                 tournament_id=tournament.id,
                 player_id=player.id if player else None,
                 name=name,
-                rank=int(data.get(header[0], 0)),
+                rank=rank,
                 points=float(data.get(wtg1_column, 0)),
                 tiebreak1=float(data.get(wtg2_column, 0)),
                 tiebreak2=float(data.get(wtg3_column, 0))
@@ -382,13 +385,17 @@ def import_tournaments_xlsx():
             print("Ranked Player: {} - {} (ID: {})".format(p.rank, p.name, p.player_id))
 
         # parse round columns into tournament games
+        rank = 0
         for i in range(header_row_idx + 1, len(df)):
             row = [str(v).strip() for v in df.iloc[i]]
-            if not row or not str(row[0]).strip().isdigit():
+            if not row:
+                break
+            data = dict(zip(header, [str(v).strip() for v in row]))
+            if not data.get('Name', '') or data.get('Name', '') == "nan":
                 break
 
-            data = dict(zip(header, [str(v).strip() for v in row]))
-            player = ranked_players[int(data.get(header[0], 0)) - 1]
+            rank = rank + 1 # here, each row counts as "rank" even if players have equal results
+            player = ranked_players[rank - 1]
             if not player:
                 raise ValueError(f'Player not found: {data.get(header[0], 0)}')
 
@@ -418,7 +425,6 @@ def import_tournaments_xlsx():
                         # assume player skipped round
                         print(f'Invalid round result, assuming skip: {round_result} for {player.name}')
                         continue
-                    
                     opponent_nr = int(m.group(1)) if m else None
                     opponent = ranked_players[opponent_nr - 1]
                     result = m.group(3)
