@@ -223,13 +223,6 @@ def import_tournaments_xlsx():
         print("No file uploaded")
         return jsonify({'error': 'No file uploaded'}), 400
 
-    location = request.form.get('location')
-    date = request.form.get('date')
-    date = datetime.strptime(date, '%Y-%m-%d').date() if date else None
-    if not date:
-        print("No tournament date given")
-        return jsonify({'error': 'No tournament date given'}), 400
-
     file = request.files['file']
     if not file.filename.endswith('.xlsx'):
         print("Invalid file type")
@@ -263,7 +256,30 @@ def import_tournaments_xlsx():
             tournament_name = values[0].strip()
         else:
             raise ValueError("No tournament name found")
-        
+
+        # Exports can contain tournament details. If they do, we will have a line for each detail:
+        # Datum: dd.mm.yyyy
+        # Ort: Musterstadt
+        # Try to search for location and date in data.
+        location = None
+        date = None
+
+        for idx, row in df.iterrows():
+            if 'Ort:' in row.values:
+                location = row[row.values == 'Ort:'].index[0]
+            if 'Datum:' in row.values:
+                date = row[row.values == 'Datum:'].index[0]
+                date = datetime.strptime(date, '%d.%m.%Y').date() if date else None
+
+        if not location:
+            location = request.form.get('location')
+        if not date:
+            date = request.form.get('date')
+            date = datetime.strptime(date, '%Y-%m-%d').date() if date else None
+        if not date:
+            print("No tournament date given")
+            return jsonify({'error': 'No tournament date given'}), 400
+
         # Find header row
         for idx, row in df.iterrows():
             values = [str(v).strip() for v in row]
