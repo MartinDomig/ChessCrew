@@ -95,7 +95,7 @@ function TournamentDetails({tournament, onPlayerClick, onDelete}) {
           alert('Turnier erfolgreich gelöscht');
         }
       } catch (err) {
-        alert('Fehler beim Löschen des Turniers');
+        alert(err.message || 'Fehler beim Löschen des Turniers');
         console.error('Error deleting tournament:', err);
       }
     }

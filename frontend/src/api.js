@@ -14,8 +14,17 @@ export async function apiFetch(endpoint, options = {}) {
   const opts = { ...options, headers, credentials: 'include' };
   const res = await fetch(`${API_URL}${endpoint}`, opts);
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || 'Network response was not ok');
+    let errorMessage = 'Network response was not ok';
+    try {
+      const errorData = await res.json();
+      if (errorData.error) {
+        errorMessage = errorData.error;
+      }
+    } catch {
+      const text = await res.text();
+      errorMessage = text || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
   if (res.status === 204) {
     return null;

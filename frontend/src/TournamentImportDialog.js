@@ -49,7 +49,7 @@ export default function TournamentImportDialog({open, onClose, onImported}) {
       setImportResult(result.imported);
       if (onImported) onImported();
     } catch (err) {
-      setError('Upload fehlgeschlagen.');
+      setError(err.message || 'Upload fehlgeschlagen.');
     } finally {
       setUploading(false);
     }
