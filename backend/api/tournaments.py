@@ -223,6 +223,13 @@ def import_tournaments_xlsx():
         print("No file uploaded")
         return jsonify({'error': 'No file uploaded'}), 400
 
+    location = request.form.get('location')
+    date = request.form.get('date')
+    date = datetime.strptime(date, '%Y-%m-%d').date() if date else None
+    if not date:
+        print("No tournament date given")
+        return jsonify({'error': 'No tournament date given'}), 400
+
     file = request.files['file']
     if not file.filename.endswith('.xlsx'):
         print("Invalid file type")
@@ -304,7 +311,7 @@ def import_tournaments_xlsx():
 
         # Create tournament
         print("Creating tournament:", tournament_name)
-        tournament = Tournament(name=tournament_name, checksum=checksum)
+        tournament = Tournament(name=tournament_name, checksum=checksum, date=date, location=location)
         db.session.add(tournament)
         db.session.flush() # tournament id
 
