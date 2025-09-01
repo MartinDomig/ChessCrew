@@ -64,29 +64,27 @@ export default function TournamentImportDialog({open, onClose, onImported}) {
             <Button
               variant="contained"
               component="label"
-              startIcon={<ImportExportIcon />
-}
-sx = {
-  {
-    mb: 2
-  }
-} > Datei auswählen < input
-type = 'file'
-accept = '.xlsx'
-hidden
+              startIcon={<ImportExportIcon />}
+              sx={{ mb: 2 }}
+            >
+              Datei auswählen
+              <input
+                type='file'
+                accept='.xlsx'
+                hidden
                 onChange={handleFileChange}
               />
             </Button>
             {file && (
               <Typography
-                variant = 'body2'
-                sx = {
-                  {
-                    maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap', display: 'block'
-                  }
-                } > {file.name} <
-                    /Typography>
+                variant='body2'
+                sx={{
+                  maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap', display: 'block'
+                }}
+              >
+                {file.name}
+              </Typography>
             )}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <TextField
@@ -95,17 +93,21 @@ hidden
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
-                labelShrink={true}
+                slotProps={{
+                  inputLabel: {
+                    shrink: true,
+                  },
+                }}
                 fullWidth
                 sx={{ mb: 2 }}
-              / >
-                    < TextField
-                id = 'tournament-location'
-                label = 'Turnierort'
-                type = 'text'
-                value = {location} onChange = {
-                    e => setLocation(
-                        e.target.value)} placeholder = 'Ort des Turniers'
+              />
+              <TextField
+                id='tournament-location'
+                label='Turnierort'
+                type='text'
+                value={location}
+                onChange={e => setLocation(e.target.value)}
+                placeholder='Ort des Turniers'
                 fullWidth
               />
             </Box>
