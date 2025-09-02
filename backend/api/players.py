@@ -2,7 +2,7 @@ import csv
 import io
 from flask import Blueprint, request, jsonify, abort, session
 from backend.db.models import db, Player, Note, TournamentPlayer, Tournament
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from .auth import login_required, admin_required
 
 players_bp = Blueprint('players', __name__)
@@ -34,7 +34,17 @@ KEY_TRANSLATIONS = {
 
 def calculate_player_tournament_stats(player_id):
     """Calculate tournament statistics for a given player."""
-    tournament_players = TournamentPlayer.query.filter_by(player_id=player_id).all()
+    
+    # Calculate date 360 days ago
+    cutoff_date = datetime.now().date() - timedelta(days=360)
+    
+    # Get tournament participations from the last 360 days
+    tournament_players = db.session.query(TournamentPlayer)\
+        .join(Tournament)\
+        .filter(TournamentPlayer.player_id == player_id)\
+        .filter(Tournament.date >= cutoff_date)\
+        .all()
+    
     total_points = sum(tp.points or 0 for tp in tournament_players)
     
     # Count only games where this player actually participated
