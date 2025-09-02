@@ -4,3 +4,5 @@ eigner tab für turniere
 turniere auf player details darstellen
 turniere bearbeiten: einzelne runden markieren (schnell vs elo wertung)
 LMM ergebnisse
+Turniere bearbeiten: Spieler-Mapping beim Import kann falsch liegen (z.b. Pichler Clemens, den gibts in Vbg und in der Stmk)
+Turnier umbenennen
