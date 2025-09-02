@@ -32,6 +32,34 @@ KEY_TRANSLATIONS = {
     'address': 'Adresse'
 }
 
+def calculate_player_tournament_stats(player_id):
+    """Calculate tournament statistics for a given player."""
+    tournament_players = TournamentPlayer.query.filter_by(player_id=player_id).all()
+    total_points = sum(tp.points or 0 for tp in tournament_players)
+    
+    # Count only games where this player actually participated
+    total_games = 0
+    for tp in tournament_players:
+        if tp.tournament:
+            # Count games where this TournamentPlayer is the player (not opponent)
+            player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
+            total_games += player_games
+    
+    return {
+        'total_points': total_points,
+        'total_games': total_games
+    }
+
+def format_note(note):
+    """Format a note for JSON response."""
+    return {
+        'id': note.id,
+        'content': note.content,
+        'manual': note.manual,
+        'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+    }
+
 @players_bp.route('/players', methods=['GET'])
 @login_required
 def list_players():
@@ -47,29 +75,13 @@ def list_players():
     # Calculate tournament stats for each player
     player_stats = {}
     for player in players:
-        # Get tournament participations and their game counts
-        tournament_players = TournamentPlayer.query.filter_by(player_id=player.id).all()
-        
-        total_points = sum(tp.points or 0 for tp in tournament_players)
-        
-        # Count only games where this player actually participated
-        total_games = 0
-        for tp in tournament_players:
-            if tp.tournament:
-                # Count games where this TournamentPlayer is the player (not opponent)
-                player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
-                total_games += player_games
-        
-        player_stats[player.id] = {
-            'total_points': total_points,
-            'total_games': total_games
-        }
+        player_stats[player.id] = calculate_player_tournament_stats(player.id)
     
     return jsonify([
         {
             **p.to_dict(),
             'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in p.tags],
-            'notes': [{'id': n.id, 'content': n.content, 'manual': n.manual, 'created_at': n.created_at.isoformat(), 'updated_at': n.updated_at.isoformat()} for n in p.notes],
+            'notes': [format_note(note) for note in p.notes],
             'tournament_stats': player_stats.get(p.id, {'total_points': 0, 'total_games': 0})
         }
         for p in players
@@ -99,25 +111,13 @@ def get_player(player_id):
         return jsonify({'error': 'Player not found'}), 404
     
     # Calculate tournament stats for this player
-    tournament_players = TournamentPlayer.query.filter_by(player_id=player_id).all()
-    total_points = sum(tp.points or 0 for tp in tournament_players)
-    
-    # Count only games where this player actually participated
-    total_games = 0
-    for tp in tournament_players:
-        if tp.tournament:
-            # Count games where this TournamentPlayer is the player (not opponent)
-            player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
-            total_games += player_games
+    tournament_stats = calculate_player_tournament_stats(player_id)
     
     return jsonify({
         **player.to_dict(),
         'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags],
-        'notes': [{'id': n.id, 'content': n.content, 'manual': n.manual, 'created_at': n.created_at.isoformat(), 'updated_at': n.updated_at.isoformat()} for n in player.notes],
-        'tournament_stats': {
-            'total_points': total_points,
-            'total_games': total_games
-        }
+        'notes': [format_note(note) for note in player.notes],
+        'tournament_stats': tournament_stats
     })
 
 @players_bp.route('/players/<int:player_id>', methods=['PUT', 'PATCH'])
@@ -145,23 +145,11 @@ def update_player(player_id):
     db.session.commit()
     
     # Calculate tournament stats for the updated player
-    tournament_players = TournamentPlayer.query.filter_by(player_id=player_id).all()
-    total_points = sum(tp.points or 0 for tp in tournament_players)
-    
-    # Count only games where this player actually participated
-    total_games = 0
-    for tp in tournament_players:
-        if tp.tournament:
-            # Count games where this TournamentPlayer is the player (not opponent)
-            player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
-            total_games += player_games
+    tournament_stats = calculate_player_tournament_stats(player_id)
     
     return jsonify({
         **player.to_dict(),
-        'tournament_stats': {
-            'total_points': total_points,
-            'total_games': total_games
-        }
+        'tournament_stats': tournament_stats
     })
 
 @players_bp.route('/players/<int:player_id>', methods=['DELETE'])
@@ -304,16 +292,7 @@ def get_player_notes(player_id):
     if not player:
         return jsonify({'error': 'Player not found'}), 404
     notes = Note.query.filter_by(player_id=player.id).order_by(Note.created_at.desc()).all()
-    return jsonify([
-        {
-            'id': note.id,
-            'content': note.content,
-            'manual': note.manual,
-            'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-        }
-        for note in notes
-    ])
+    return jsonify([format_note(note) for note in notes])
 
 @players_bp.route('/players/<int:player_id>/notes', methods=['POST'])
 @login_required
@@ -328,13 +307,7 @@ def create_player_note(player_id):
     note = Note(player=player, content=content, manual=True, created_at=datetime.now())
     db.session.add(note)
     db.session.commit()
-    return jsonify({
-        'id': note.id,
-        'content': note.content,
-        'manual': note.manual,
-        'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-    }), 201
+    return jsonify(format_note(note)), 201
 
 @players_bp.route('/players/<int:player_id>/notes/<int:note_id>', methods=['PUT', 'PATCH'])
 @login_required
@@ -352,13 +325,7 @@ def update_player_note(player_id, note_id):
     note.content = content
     note.updated_at = datetime.now()
     db.session.commit()
-    return jsonify({
-        'id': note.id,
-        'content': note.content,
-        'manual': note.manual,
-        'created_at': note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-    }), 200
+    return jsonify(format_note(note)), 200
 
 @players_bp.route('/players/<int:player_id>/notes/<int:note_id>', methods=['DELETE'])
 @login_required
