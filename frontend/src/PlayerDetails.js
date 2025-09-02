@@ -6,6 +6,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CategoryChip from './CategoryChip';
 import TagChip from './TagChip';
 import PlayerActiveStar from './PlayerActiveStar';
+import TournamentStatsChip from './TournamentStatsChip';
 import { apiFetch } from './api';
 import PlayerNotes from './PlayerNotes';
 import { countryCodeToFlag } from './countryUtils';
@@ -117,6 +118,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
         </Typography>
         <Typography variant="h5">
           {player.first_name}, {player.last_name} {countryCodeToFlag(player.citizen)} {player.female ? '♛' : '♚'} <CategoryChip player={player} />
+          <TournamentStatsChip player={player} />
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 2 }}>
           {player.club}

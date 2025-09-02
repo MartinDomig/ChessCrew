@@ -3,6 +3,7 @@ import { Card, Typography, Box } from '@mui/material';
 import CategoryChip from './CategoryChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import TagChip from './TagChip';
+import TournamentStatsChip from './TournamentStatsChip';
 import { countryCodeToFlag } from './countryUtils';
 
 export default function PlayerCard({ player, onStatusChange, onTagClick, onCategoryClick }) {
@@ -44,9 +45,10 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
             {playerElo}
           </Typography>
         </Box>
-        {/* Third row: Category, Tags */}
+        {/* Third row: Category, Tournament Stats, Tags */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', mt: 0.5 }}>
           <CategoryChip player={player} onClick={onCategoryClick} />
+          <TournamentStatsChip player={player} />
           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 0.5, overflow: 'hidden', minWidth: 80 }}>
             {player.tags && player.tags.map(tag => (
               <TagChip

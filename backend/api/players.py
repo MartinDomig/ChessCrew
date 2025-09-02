@@ -1,7 +1,7 @@
 import csv
 import io
 from flask import Blueprint, request, jsonify, abort, session
-from backend.db.models import db, Player, Note
+from backend.db.models import db, Player, Note, TournamentPlayer, Tournament
 from datetime import datetime, date
 from .auth import login_required, admin_required
 
@@ -43,11 +43,27 @@ def list_players():
         elif active.lower() == 'false':
             query = query.filter_by(is_active=False)
     players = query.order_by(Player.last_name.asc()).all()
+    
+    # Calculate tournament stats for each player
+    player_stats = {}
+    for player in players:
+        # Get tournament participations and their game counts
+        tournament_players = TournamentPlayer.query.filter_by(player_id=player.id).all()
+        
+        total_points = sum(tp.points or 0 for tp in tournament_players)
+        total_games = sum(len(tp.tournament.games) for tp in tournament_players if tp.tournament)
+        
+        player_stats[player.id] = {
+            'total_points': total_points,
+            'total_games': total_games
+        }
+    
     return jsonify([
         {
             **p.to_dict(),
             'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in p.tags],
-            'notes': [{'id': n.id, 'content': n.content, 'manual': n.manual, 'created_at': n.created_at.isoformat(), 'updated_at': n.updated_at.isoformat()} for n in p.notes]
+            'notes': [{'id': n.id, 'content': n.content, 'manual': n.manual, 'created_at': n.created_at.isoformat(), 'updated_at': n.updated_at.isoformat()} for n in p.notes],
+            'tournament_stats': player_stats.get(p.id, {'total_points': 0, 'total_games': 0})
         }
         for p in players
     ])
@@ -74,10 +90,20 @@ def get_player(player_id):
     player = Player.query.get(player_id)
     if not player:
         return jsonify({'error': 'Player not found'}), 404
+    
+    # Calculate tournament stats for this player
+    tournament_players = TournamentPlayer.query.filter_by(player_id=player_id).all()
+    total_points = sum(tp.points or 0 for tp in tournament_players)
+    total_games = sum(len(tp.tournament.games) for tp in tournament_players if tp.tournament)
+    
     return jsonify({
         **player.to_dict(),
         'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags],
-        'notes': [{'id': n.id, 'content': n.content, 'manual': n.manual, 'created_at': n.created_at.isoformat(), 'updated_at': n.updated_at.isoformat()} for n in player.notes]
+        'notes': [{'id': n.id, 'content': n.content, 'manual': n.manual, 'created_at': n.created_at.isoformat(), 'updated_at': n.updated_at.isoformat()} for n in player.notes],
+        'tournament_stats': {
+            'total_points': total_points,
+            'total_games': total_games
+        }
     })
 
 @players_bp.route('/players/<int:player_id>', methods=['PUT', 'PATCH'])
@@ -103,7 +129,19 @@ def update_player(player_id):
         db.session.add(note)
 
     db.session.commit()
-    return jsonify(player.to_dict())
+    
+    # Calculate tournament stats for the updated player
+    tournament_players = TournamentPlayer.query.filter_by(player_id=player_id).all()
+    total_points = sum(tp.points or 0 for tp in tournament_players)
+    total_games = sum(len(tp.tournament.games) for tp in tournament_players if tp.tournament)
+    
+    return jsonify({
+        **player.to_dict(),
+        'tournament_stats': {
+            'total_points': total_points,
+            'total_games': total_games
+        }
+    })
 
 @players_bp.route('/players/<int:player_id>', methods=['DELETE'])
 @login_required
@@ -317,7 +355,6 @@ def delete_player_note(player_id, note_id):
 @players_bp.route('/players/<int:player_id>/tournaments', methods=['GET'])
 @login_required
 def get_player_tournaments(player_id):
-    from backend.db.models import TournamentPlayer, Tournament
     player = Player.query.get(player_id)
     if not player:
         return jsonify({'error': 'Player not found'}), 404
