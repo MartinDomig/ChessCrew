@@ -121,6 +121,13 @@ function MainWindowContent({user}) {
   // Tab icons for mobile UI
   const tabIcons = [<PeopleIcon />, <EmojiEventsIcon />];
 
+  const handleTournamentUpdate = (updatedTournament) => {
+    // Update the selected tournament
+    setSelectedTournament(updatedTournament);
+    // Reload the tournament list to reflect changes
+    reloadTournaments();
+  };
+
   return (
     <Box sx={{
     height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -274,7 +281,8 @@ sx = {
     showTournamentDetail && selectedTournament &&
         (<TournamentDetails tournament={selectedTournament}
           onPlayerClick={navigateToPlayerFromTournament}
-          onDelete={handleTournamentDelete} />
+          onDelete={handleTournamentDelete}
+          onUpdate={handleTournamentUpdate} />
         )}
       </Box>
          </Box>

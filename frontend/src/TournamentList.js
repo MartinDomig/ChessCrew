@@ -5,9 +5,27 @@ import ListItemText from '@mui/material/ListItemText';
 import React from 'react';
 
 function TournamentList({tournaments, onTournamentClick}) {
+  // Sort tournaments: date descending, then name ascending
+  const sortedTournaments = [...tournaments].sort((a, b) => {
+    // Parse dates for comparison
+    const dateA = a.date ? new Date(a.date) : new Date(0);
+    const dateB = b.date ? new Date(b.date) : new Date(0);
+    
+    // First sort by date descending (newest first)
+    const dateComparison = dateB.getTime() - dateA.getTime();
+    if (dateComparison !== 0) {
+      return dateComparison;
+    }
+    
+    // If dates are equal, sort by name ascending (A-Z)
+    const nameA = (a.name || '').toLowerCase();
+    const nameB = (b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
   return (
     <List>
-      {tournaments.map((tournament) => {
+      {sortedTournaments.map((tournament) => {
       let dateStr = '';
       if (tournament.date) {
         const d = new Date(tournament.date);
