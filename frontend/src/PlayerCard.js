@@ -27,7 +27,7 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
           </Typography>
         </Box>
         {/* Second row: Club, Rating */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', mt: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', mt: 0.5 }}>
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem', mr: 2 }}>
             {player.club}
           </Typography>
@@ -38,15 +38,14 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
               fontSize: '0.95rem',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: 120
+              textOverflow: 'ellipsis'
             }}
           >
             {playerElo}
           </Typography>
         </Box>
         {/* Third row: Category, Tournament Stats, Tags */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', mt: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', mt: 0.5 }}>
           <CategoryChip player={player} onClick={onCategoryClick} />
           <TournamentStatsChip player={player} />
           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 0.5, overflow: 'hidden', minWidth: 80 }}>
