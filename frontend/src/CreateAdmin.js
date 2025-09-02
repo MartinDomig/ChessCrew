@@ -15,7 +15,7 @@ export default function CreateAdmin({ onCreated }) {
     try {
       await apiFetch('/setup-admin', {
         method: 'POST',
-        body: JSON.stringify({ username, password })
+        body: { username, password }
       });
       onCreated();
     } catch (err) {

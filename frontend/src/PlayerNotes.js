@@ -36,14 +36,12 @@ export default function PlayerNotes({ playerId }) {
       if (editingNoteId) {
         await apiFetch(`/players/${playerId}/notes/${editingNoteId}`, {
           method: 'PATCH',
-          body: JSON.stringify({ content: noteInput }),
-          headers: { 'Content-Type': 'application/json' },
+          body: { content: noteInput }
         });
       } else {
         await apiFetch(`/players/${playerId}/notes`, {
           method: 'POST',
-          body: JSON.stringify({ content: noteInput }),
-          headers: { 'Content-Type': 'application/json' },
+          body: { content: noteInput }
         });
       }
       setNoteInput('');

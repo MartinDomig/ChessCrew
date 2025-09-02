@@ -10,7 +10,7 @@ export default function PlayerActiveStar({ player }) {
     try {
       const updated = await apiFetch(`/players/${player.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ is_active: !isActive })
+        body: { is_active: !isActive }
       });
       setIsActive(updated.is_active);
     } catch (err) {

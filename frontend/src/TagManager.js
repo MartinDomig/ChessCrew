@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, CircularProgress, TextField, Chip } from '@mui/material';
 import { apiFetch } from './api';
@@ -34,7 +33,7 @@ export default function TagManager({ player, open, onClose, onTagAdded }) {
     if (player.tags && player.tags.some(t => t.id === tag.id)) return;
     setAdding(true);
     try {
-      await apiFetch(`/players/${player.id}/tags`, { method: 'POST', body: JSON.stringify({ tag_id: tag.id }) });
+      await apiFetch(`/players/${player.id}/tags`, { method: 'POST', body: { tag_id: tag.id } });
       if (onTagAdded) onTagAdded(tag);
     } catch {
       setTagError('Tag konnte nicht hinzugefügt werden');
@@ -49,9 +48,9 @@ export default function TagManager({ player, open, onClose, onTagAdded }) {
     setAdding(true);
     setTagError(null);
     try {
-      const tag = await apiFetch('/tags', { method: 'POST', body: JSON.stringify({ name: newTagName, color: newTagColor }) });
+      const tag = await apiFetch('/tags', { method: 'POST', body: { name: newTagName, color: newTagColor } });
       setAllTags([...allTags, tag]);
-      await apiFetch(`/players/${player.id}/tags`, { method: 'POST', body: JSON.stringify({ tag_id: tag.id }) });
+      await apiFetch(`/players/${player.id}/tags`, { method: 'POST', body: { tag_id: tag.id } });
       setNewTagName('');
       setNewTagColor('#1976d2');
       setShowAddUI(false);

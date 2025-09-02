@@ -279,7 +279,7 @@ function TournamentDetails({ tournament, onPlayerClick, onDelete, onUpdate }) {
     try {
       const updatedTournament = await apiFetch(`/tournaments/${localTournament.id}`, {
         method: 'PUT',
-        body: JSON.stringify(editedTournament)
+        body: editedTournament
       });
 
       // Update local state immediately

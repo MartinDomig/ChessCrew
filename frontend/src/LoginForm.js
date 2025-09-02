@@ -15,7 +15,7 @@ export default function LoginForm({ onLogin }) {
     try {
       await apiFetch('/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password })
+        body: { username, password }
       });
       onLogin();
     } catch (err) {
