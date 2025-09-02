@@ -38,7 +38,14 @@ def update_tournament(tournament_id):
     t = Tournament.query.get_or_404(tournament_id)
     data = request.json
     t.name = data.get('name', t.name)
-    t.date = data.get('date', t.date)
+    
+    # Parse date string to date object if provided
+    if 'date' in data and data['date']:
+        try:
+            t.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Expected YYYY-MM-DD'}), 400
+    
     t.location = data.get('location', t.location)
     db.session.commit()
     return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location})
