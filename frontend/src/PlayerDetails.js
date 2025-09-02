@@ -123,9 +123,11 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
         <Typography color="text.secondary" sx={{ mb: 2 }}>
           {player.club}
         </Typography>
-        <Typography sx={{ mb: 1 }}>
-            <strong>ELO:</strong> {player.elo ?? ''} / {player.fide_elo ?? ''}
-        </Typography>
+        {(player.elo > 0 || player.fide_elo > 0) && (
+          <Typography sx={{ mb: 1 }}>
+              <strong>ELO:</strong> {player.elo ?? ''} / {player.fide_elo ?? ''}
+          </Typography>
+        )}
         <Typography sx={{ mb: 1 }}>
             <strong>Geburtsdatum:</strong> {player.birthday ? new Date(player.birthday).toLocaleDateString('de-DE') : ''}
         </Typography>
