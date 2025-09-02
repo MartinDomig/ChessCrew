@@ -485,3 +485,23 @@ def import_tournaments_xlsx():
 
     return jsonify({'imported': imported_games, 'success': True}), 200
 
+@tournaments_bp.route('/tournament-players/<int:tp_id>/disassociate', methods=['PUT'])
+@admin_required
+def disassociate_player_from_tournament(tp_id):
+    """Disassociate a player from a tournament by setting player_id to null"""
+    tp = TournamentPlayer.query.get_or_404(tp_id)
+    
+    # Store the current player_id for response
+    old_player_id = tp.player_id
+    
+    # Set player_id to null to disassociate
+    tp.player_id = None
+    db.session.commit()
+    
+    return jsonify({
+        'id': tp.id,
+        'tournament_id': tp.tournament_id,
+        'old_player_id': old_player_id,
+        'message': 'Player disassociated from tournament'
+    })
+

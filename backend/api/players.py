@@ -331,6 +331,7 @@ def get_player_tournaments(player_id):
     
     return jsonify([
         {
+            'id': tp.id,  # TournamentPlayer ID for disassociation
             'tournament_id': tournament.id,
             'tournament_name': tournament.name,
             'date': tournament.date.isoformat() if tournament.date else None,
