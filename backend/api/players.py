@@ -51,7 +51,14 @@ def list_players():
         tournament_players = TournamentPlayer.query.filter_by(player_id=player.id).all()
         
         total_points = sum(tp.points or 0 for tp in tournament_players)
-        total_games = sum(len(tp.tournament.games) for tp in tournament_players if tp.tournament)
+        
+        # Count only games where this player actually participated
+        total_games = 0
+        for tp in tournament_players:
+            if tp.tournament:
+                # Count games where this TournamentPlayer is the player (not opponent)
+                player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
+                total_games += player_games
         
         player_stats[player.id] = {
             'total_points': total_points,
@@ -94,7 +101,14 @@ def get_player(player_id):
     # Calculate tournament stats for this player
     tournament_players = TournamentPlayer.query.filter_by(player_id=player_id).all()
     total_points = sum(tp.points or 0 for tp in tournament_players)
-    total_games = sum(len(tp.tournament.games) for tp in tournament_players if tp.tournament)
+    
+    # Count only games where this player actually participated
+    total_games = 0
+    for tp in tournament_players:
+        if tp.tournament:
+            # Count games where this TournamentPlayer is the player (not opponent)
+            player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
+            total_games += player_games
     
     return jsonify({
         **player.to_dict(),
@@ -133,7 +147,14 @@ def update_player(player_id):
     # Calculate tournament stats for the updated player
     tournament_players = TournamentPlayer.query.filter_by(player_id=player_id).all()
     total_points = sum(tp.points or 0 for tp in tournament_players)
-    total_games = sum(len(tp.tournament.games) for tp in tournament_players if tp.tournament)
+    
+    # Count only games where this player actually participated
+    total_games = 0
+    for tp in tournament_players:
+        if tp.tournament:
+            # Count games where this TournamentPlayer is the player (not opponent)
+            player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
+            total_games += player_games
     
     return jsonify({
         **player.to_dict(),
@@ -368,7 +389,7 @@ def get_player_tournaments(player_id):
     
     return jsonify([
         {
-            'id': tp.id,  # TournamentPlayer ID for disassociation
+            'id': tp.id  # TournamentPlayer ID for disassociation
             'tournament_id': tournament.id,
             'tournament_name': tournament.name,
             'date': tournament.date.isoformat() if tournament.date else None,
