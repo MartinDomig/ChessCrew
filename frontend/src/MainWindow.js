@@ -230,11 +230,13 @@ sx = {
         )
 }
 {showPlayerDetail && selectedPlayer && (
-          <PlayerDetails 
-            player={selectedPlayer} 
-            onPlayerUpdated={updatePlayer}
-            onTournamentClick={navigateToTournamentFromPlayer}
-          />
+          <Box sx={{ flex: 1, overflowY: 'auto', height: '100%' }}>
+            <PlayerDetails 
+              player={selectedPlayer} 
+              onPlayerUpdated={updatePlayer}
+              onTournamentClick={navigateToTournamentFromPlayer}
+            />
+          </Box>
         )}
         {/* Master/Detail for Tournaments */}
         {showTournamentMaster && (
@@ -279,11 +281,13 @@ sx = {
 }
 {
     showTournamentDetail && selectedTournament &&
-        (<TournamentDetails tournament={selectedTournament}
-          onPlayerClick={navigateToPlayerFromTournament}
-          onDelete={handleTournamentDelete}
-          onUpdate={handleTournamentUpdate} />
-        )}
+    (<Box sx={{ flex: 1, overflowY: 'auto', height: '100%' }}>
+      <TournamentDetails tournament={selectedTournament}
+        onPlayerClick={navigateToPlayerFromTournament}
+        onDelete={handleTournamentDelete}
+        onUpdate={handleTournamentUpdate} />
+    </Box>)
+}
       </Box>
          </Box>
   );
