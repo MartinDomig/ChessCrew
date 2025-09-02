@@ -3,6 +3,7 @@ import { IconButton, Card, CardContent, Typography, Button, Box, CircularProgres
 import TagManager from './TagManager';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import CategoryChip from './CategoryChip';
 import TagChip from './TagChip';
 import PlayerActiveStar from './PlayerActiveStar';
@@ -103,6 +104,30 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
       setSaveError(err.message);
     } finally {
       setSaveLoading(false);
+    }
+  };
+
+  const handleTournamentDisassociate = async (tournamentPlayerId, tournamentName) => {
+    if (!window.confirm(`Möchten Sie "${player.first_name} ${player.last_name}" wirklich vom Turnier "${tournamentName}" entfernen?`)) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/tournament-players/${tournamentPlayerId}/disassociate`, {
+        method: 'PUT'
+      });
+      
+      // Refresh the tournaments list
+      await fetchTournaments();
+      
+      // Refresh player data to update any related state
+      if (onPlayerUpdated) {
+        const updatedPlayer = await apiFetch(`/players/${player.id}`);
+        onPlayerUpdated(updatedPlayer);
+      }
+    } catch (err) {
+      console.error('Error disassociating player from tournament:', err);
+      alert('Fehler beim Entfernen des Spielers vom Turnier: ' + err.message);
     }
   };
 
@@ -254,7 +279,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
                 
                 return (
                   <Card 
-                    key={tournament.tournament_id || index} 
+                    key={tournament.id || index} 
                     sx={{ 
                       backgroundColor: '#fafafa',
                       cursor: 'pointer',
@@ -267,8 +292,28 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
                     }}
                     onClick={() => onTournamentClick && onTournamentClick({ id: tournament.tournament_id, name: tournament.tournament_name })}
                   >
-                    <CardContent sx={{ py: 2 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
+                    <CardContent sx={{ py: 2, position: 'relative' }}>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent card click
+                          handleTournamentDisassociate(tournament.id, tournament.tournament_name);
+                        }}
+                        sx={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          color: 'error.main',
+                          '&:hover': {
+                            backgroundColor: 'error.light',
+                            color: 'white'
+                          }
+                        }}
+                        title={`"${player.first_name} ${player.last_name}" vom Turnier entfernen`}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'medium', pr: 4 }}>
                         {tournament.tournament_name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary" >
