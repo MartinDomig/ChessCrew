@@ -1,51 +1,42 @@
 import React, { useEffect, useState } from 'react';
-import { IconButton, Card, CardContent, Typography, Button, Box, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import { IconButton, Card, CardContent, Typography, Box, CircularProgress } from '@mui/material';
 import TagManager from './TagManager';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CategoryChip from './CategoryChip';
 import TagChip from './TagChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import { apiFetch } from './api';
 import PlayerNotes from './PlayerNotes';
-import ContactEditModal from './ContactEditModal';
 import { countryCodeToFlag } from './countryUtils';
+import ContactInfo from './ContactInfo';
+import EditIcon from '@mui/icons-material/Edit';
+import CloseIcon from '@mui/icons-material/Close';
 
 export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamentClick }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [email, setEmail] = useState(player.email || '');
-  const [phone, setPhone] = useState(player.phone || '');
-  const [address, setAddress] = useState(player.address || '');
-  const [zip, setZip] = useState(player.zip || '');
-  const [town, setTown] = useState(player.town || '');
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [saveError, setSaveError] = useState(null);
   const [localPlayer, setLocalPlayer] = useState(player);
   const [tagModalOpen, setTagModalOpen] = useState(false);
   const [playerTagsKey, setPlayerTagsKey] = useState(0);
   const [tournaments, setTournaments] = useState([]);
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState(null);
+  const [contactEditing, setContactEditing] = useState(false);
+  const [tournamentEditing, setTournamentEditing] = useState(false);
 
   useEffect(() => {
     setNotes(player.notes || []);
     setLoading(false);
-    setError(null);
-    setEmail(player.email || '');
-    setPhone(player.phone || '');
-    setAddress(player.address || '');
-    setZip(player.zip || '');
-    setTown(player.town || '');
     setLocalPlayer(player);
-    setModalOpen(false);
     
     // Fetch tournament history
     fetchTournaments();
   }, [player.id]);
+
+  useEffect(() => {
+    setLocalPlayer(player);
+  }, [player]);
 
   const fetchTournaments = async () => {
     setTournamentsLoading(true);
@@ -80,33 +71,6 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
     }
   };
 
-  const handleContactSave = async ({ email, phone, address, zip, town }) => {
-    setSaveLoading(true);
-    setSaveError(null);
-    try {
-      await apiFetch(`/players/${player.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ email, phone, address, zip, town }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-      setModalOpen(false);
-      const updated = { ...localPlayer, email, phone, address, zip, town };
-      setLocalPlayer(updated);
-      if (onPlayerUpdated) onPlayerUpdated(updated);
-      setLoading(true);
-      setNotes([]);
-      setError(null);
-      apiFetch(`/players/${player.id}/notes`)
-        .then(setNotes)
-        .catch(err => setError(err.message))
-        .finally(() => setLoading(false));
-    } catch (err) {
-      setSaveError(err.message);
-    } finally {
-      setSaveLoading(false);
-    }
-  };
-
   const handleTournamentDisassociate = async (tournamentPlayerId, tournamentName) => {
     if (!window.confirm(`Möchten Sie "${player.first_name} ${player.last_name}" wirklich vom Turnier "${tournamentName}" entfernen?`)) {
       return;
@@ -131,6 +95,19 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
     }
   };
 
+  const handleContactEditToggle = () => {
+    if (contactEditing) {
+      setLocalPlayer(player);
+      setContactEditing(false);
+    } else {
+      setContactEditing(true);
+    }
+  };
+
+  const handleTournamentEditToggle = () => {
+    setTournamentEditing(!tournamentEditing);
+  };
+
   return (
     <Card sx={{ mb: 2, maxWidth: 500, mx: 'auto', position: 'relative' }}>
       <PlayerActiveStar player={player} />
@@ -150,58 +127,32 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
         <Typography sx={{ mb: 1 }}>
             <strong>Geburtsdatum:</strong> {player.birthday ? new Date(player.birthday).toLocaleDateString('de-DE') : ''}
         </Typography>
-        <Typography sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-          <strong>Adresse:</strong>
-          <span style={{ marginLeft: 8 }}>
-            {[localPlayer.address, localPlayer.zip, localPlayer.town].filter(Boolean).join(', ')}
-          </span>
-        </Typography>
-        <Typography sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-          <strong>E-Mail:</strong>
-          <span style={{ marginLeft: 8 }}>
-            {localPlayer.email
-              ? localPlayer.email
-                  .split(/[,;\s]+/)
-                  .filter(e => e)
-                  .map((email, idx) => (
-                    <React.Fragment key={email}>
-                      <a href={`mailto:${email}`}>{email}</a>
-                      {idx < localPlayer.email.split(/[,;\s]+/).filter(e => e).length - 1 ? ', ' : ''}
-                    </React.Fragment>
-                  ))
-              : null}
-          </span>
-        </Typography>
-        <Typography sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-          <strong>Telefon:</strong>
-          <span style={{ marginLeft: 8 }}>
-            {localPlayer.phone ? localPlayer.phone : null}
-          </span>
+        {/* Contact Info Header with Edit/Cancel Button */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="subtitle1" sx={{ color: 'text.secondary', fontWeight: 'medium' }}>
+            Kontakt
+          </Typography>
           <IconButton
-            color="primary"
-            onClick={() => setModalOpen(true)}
-            sx={{ ml: 2 }}
-            aria-label="Kontakt bearbeiten"
+            onClick={handleContactEditToggle}
+            sx={{
+              color: 'primary.main',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(4px)',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 1)',
+                transform: 'scale(1.05)'
+              },
+              transition: 'all 0.2s ease-in-out',
+              size: 'small'
+            }}
+            aria-label={contactEditing ? "Bearbeitung abbrechen" : "Kontaktinformationen bearbeiten"}
+            title={contactEditing ? "Bearbeitung abbrechen" : "Kontaktinformationen bearbeiten"}
           >
-            <EditIcon />
+            {contactEditing ? <CloseIcon fontSize="small" /> : <EditIcon fontSize="small" />}
           </IconButton>
-        </Typography>
-        {saveError && (
-          <Typography color="error" sx={{ mb: 1 }}>{saveError}</Typography>
-        )}
-        <ContactEditModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onSave={handleContactSave}
-          loading={saveLoading}
-          error={saveError}
-          initialEmail={email}
-          initialPhone={phone}
-          initialAddress={address}
-          initialZip={zip}
-          initialTown={town}
-        />
-        <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 1, width: '100%' }}>
+        </Box>
+        <ContactInfo player={localPlayer} onPlayerUpdated={onPlayerUpdated} contactEditing={contactEditing} onEditClick={handleContactEditToggle} onEditClose={() => setContactEditing(false)} />
+        <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', pt: 1, gap: 1, width: '100%' }}>
           <IconButton
             color="primary"
             size="large"
@@ -241,9 +192,29 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
           }
         />
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" sx={{ color: 'primary.main' }}>
-            Turniere
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="h6" sx={{ color: 'primary.main' }}>
+              Turniere
+            </Typography>
+            <IconButton
+              onClick={handleTournamentEditToggle}
+              sx={{
+                color: 'primary.main',
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                backdropFilter: 'blur(4px)',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 1)',
+                  transform: 'scale(1.05)'
+                },
+                transition: 'all 0.2s ease-in-out',
+                size: 'small'
+              }}
+              aria-label={tournamentEditing ? "Bearbeitung abbrechen" : "Turniere bearbeiten"}
+              title={tournamentEditing ? "Bearbeitung abbrechen" : "Turniere bearbeiten"}
+            >
+              {tournamentEditing ? <CloseIcon fontSize="small" /> : <EditIcon fontSize="small" />}
+            </IconButton>
+          </Box>
           
           {tournamentsLoading && (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
@@ -293,27 +264,29 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
                     onClick={() => onTournamentClick && onTournamentClick({ id: tournament.tournament_id, name: tournament.tournament_name })}
                   >
                     <CardContent sx={{ py: 2, position: 'relative' }}>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent card click
-                          handleTournamentDisassociate(tournament.id, tournament.tournament_name);
-                        }}
-                        sx={{
-                          position: 'absolute',
-                          top: 8,
-                          right: 8,
-                          color: 'error.main',
-                          '&:hover': {
-                            backgroundColor: 'error.light',
-                            color: 'white'
-                          }
-                        }}
-                        title={`"${player.first_name} ${player.last_name}" vom Turnier entfernen`}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'medium', pr: 4 }}>
+                      {tournamentEditing && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent card click
+                            handleTournamentDisassociate(tournament.id, tournament.tournament_name);
+                          }}
+                          sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            color: 'error.main',
+                            '&:hover': {
+                              backgroundColor: 'error.light',
+                              color: 'white'
+                            }
+                          }}
+                          title={`"${player.first_name} ${player.last_name}" vom Turnier entfernen`}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'medium', pr: tournamentEditing ? 4 : 0 }}>
                         {tournament.tournament_name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary" >
