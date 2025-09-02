@@ -11,6 +11,7 @@ source venv/bin/activate
 pip install -r backend/requirements.txt
 
 export FLASK_SECRET_KEY="my secret key"
+export FLASK_ENV=development
 
 # Start the Flask development server
 python -m backend.app

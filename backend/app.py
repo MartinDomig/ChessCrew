@@ -8,6 +8,15 @@ def create_app():
     app.secret_key = os.environ.get('FLASK_SECRET_KEY')
     if not app.secret_key:
         raise RuntimeError('FLASK_SECRET_KEY environment variable must be set.')
+    
+    # Set Flask environment (automatically sets DEBUG based on FLASK_ENV)
+    flask_env = os.environ.get('FLASK_ENV', 'production')
+    app.config['ENV'] = flask_env
+    if flask_env == 'development':
+        app.config['DEBUG'] = True
+    else:
+        app.config['DEBUG'] = False
+    
     # Set up configurations
     db_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db')
     os.makedirs(db_dir, exist_ok=True)
@@ -34,5 +43,17 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(port=15001, debug=True)
+    
+    # Security check: Warn if debug mode is enabled
+    if app.config.get('DEBUG', False):
+        flask_env = os.environ.get('FLASK_ENV', 'production')
+        if flask_env == 'production':
+            print("⚠️  WARNING: Debug mode is enabled in production environment!")
+            print("   This is a security risk and should be disabled.")
+            print("   Set FLASK_ENV=production or remove DEBUG from environment.")
+            print("   For production, use a WSGI server like gunicorn instead of app.run()")
+        else:
+            print("🔧 Debug mode enabled (development environment)")
+    
+    app.run(port=15001)
 
