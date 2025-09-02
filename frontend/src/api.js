@@ -4,14 +4,18 @@ const API_URL = process.env.REACT_APP_API_URL;
 export async function apiFetch(endpoint, options = {}) {
   const method = options.method ? options.method.toUpperCase() : 'GET';
   let headers = { ...(options.headers || {}) };
-  // Only set Content-Type: application/json if body is a plain object
-  if (['POST', 'PUT', 'PATCH'].includes(method)) {
-    const isFormData = options.body instanceof FormData;
+  let body = options.body;
+  
+  // Handle body serialization
+  if (['POST', 'PUT', 'PATCH'].includes(method) && body && typeof body === 'object') {
+    const isFormData = body instanceof FormData;
     if (!isFormData) {
       headers['Content-Type'] = 'application/json';
+      body = JSON.stringify(body);
     }
   }
-  const opts = { ...options, headers, credentials: 'include' };
+  
+  const opts = { ...options, headers, body, credentials: 'include' };
   const res = await fetch(`${API_URL}${endpoint}`, opts);
   if (!res.ok) {
     let errorMessage = 'Network response was not ok';
