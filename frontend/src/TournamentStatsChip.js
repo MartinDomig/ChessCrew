@@ -73,7 +73,7 @@ export default function TournamentStatsChip({ player }) {
     return null; // Don't show chip if no tournament data
   }
 
-  const label = `${formatPoints(stats.points)}/${stats.games}`;
+  const label = `${formatPoints(stats.points)} / ${stats.games}`;
 
   return (
     <Chip
