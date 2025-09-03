@@ -83,8 +83,9 @@ const CacheManager = () => {
     };
   }, []);
 
-  const validEntries = cacheInfo.entries.filter(entry => !entry.expired);
-  const expiredEntries = cacheInfo.entries.filter(entry => entry.expired);
+  const validEntries = cacheInfo.entries.filter(entry => entry.status === 'valid');
+  const staleEntries = cacheInfo.entries.filter(entry => entry.status === 'stale');
+  const expiredEntries = cacheInfo.entries.filter(entry => entry.status === 'expired');
 
   return (
     <Paper elevation={1} sx={{ p: 2, m: 2 }}>
@@ -106,15 +107,22 @@ const CacheManager = () => {
       <Grid container spacing={2} mb={2}>
         <Grid item xs={6} sm={3}>
           <Chip 
-            label={`${validEntries.length} cached`} 
-            color="primary" 
+            label={`${validEntries.length} valid`} 
+            color="success" 
+            variant="outlined" 
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <Chip 
+            label={`${staleEntries.length} stale`} 
+            color="warning" 
             variant="outlined" 
           />
         </Grid>
         <Grid item xs={6} sm={3}>
           <Chip 
             label={`${expiredEntries.length} expired`} 
-            color="warning" 
+            color="error" 
             variant="outlined" 
           />
         </Grid>
@@ -144,7 +152,7 @@ const CacheManager = () => {
       <Collapse in={expanded}>
         {!isOnline && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            You're offline. The app will use cached data for GET requests and prevent write operations.
+            You're offline. The app will use cached data (including stale data up to 24 hours old) for GET requests and prevent write operations.
           </Alert>
         )}
 
@@ -171,6 +179,29 @@ const CacheManager = () => {
           </Box>
         )}
 
+        {staleEntries.length > 0 && (
+          <Box mb={2}>
+            <Typography variant="subtitle2" gutterBottom>
+              Stale Cache Entries ({staleEntries.length}) - Available Offline
+            </Typography>
+            <List dense>
+              {staleEntries.map((entry, index) => (
+                <ListItem key={index} divider>
+                  <ListItemText
+                    primary={formatUrl(entry.url)}
+                    secondary={`Cached ${formatAge(entry.age)} ago (stale but available offline)`}
+                  />
+                  <Chip
+                    label="Stale"
+                    color="warning"
+                    size="small"
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        )}
+
         {expiredEntries.length > 0 && (
           <Box>
             <Typography variant="subtitle2" gutterBottom>
@@ -181,11 +212,11 @@ const CacheManager = () => {
                 <ListItem key={index} divider>
                   <ListItemText
                     primary={formatUrl(entry.url)}
-                    secondary={`Expired ${formatAge(entry.age - 300000)} ago`}
+                    secondary={`Expired ${formatAge(entry.age - (24 * 60 * 60 * 1000))} ago`}
                   />
                   <Chip
                     label="Expired"
-                    color="warning"
+                    color="error"
                     size="small"
                   />
                 </ListItem>

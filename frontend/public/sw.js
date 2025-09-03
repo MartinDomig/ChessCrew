@@ -121,8 +121,39 @@ self.addEventListener('fetch', (event) => {
       .catch(() => {
         // If both cache and network fail, return a fallback page for navigation requests
         if (event.request.destination === 'document') {
-          return caches.match('/');
+          return caches.match('/').then(cachedRoot => {
+            if (cachedRoot) {
+              return cachedRoot;
+            }
+            // If no cached root, return a basic offline page
+            return new Response(
+              `<!DOCTYPE html>
+              <html>
+              <head>
+                <title>ChessCrew - Offline</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+              </head>
+              <body>
+                <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+                  <h1>You're Offline</h1>
+                  <p>ChessCrew is not available right now. Please check your internet connection and try again.</p>
+                  <button onclick="window.location.reload()">Retry</button>
+                </div>
+              </body>
+              </html>`,
+              {
+                headers: { 'Content-Type': 'text/html' }
+              }
+            );
+          });
         }
+        
+        // For non-document requests that fail, return a proper error response
+        return new Response('Service Unavailable', { 
+          status: 503, 
+          statusText: 'Service Unavailable' 
+        });
       })
   );
 });

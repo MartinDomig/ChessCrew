@@ -4,6 +4,7 @@ const API_URL = process.env.REACT_APP_API_URL;
 // Cache configuration
 const CACHE_NAME = 'chesscrew-api-cache-v1';
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes in milliseconds
+const OFFLINE_CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours for offline mode
 
 // Helper function to check if we're online
 const isOnline = () => navigator.onLine;
@@ -31,12 +32,56 @@ const getCachedData = async (cacheKey) => {
     if (cachedResponse) {
       const cachedData = await cachedResponse.json();
       
-      // Check if cache is still valid
-      if (cachedData._cacheTimestamp && 
-          Date.now() - cachedData._cacheTimestamp < CACHE_EXPIRY) {
-        // Remove cache metadata before returning
-        const { _cacheTimestamp, ...data } = cachedData;
-        return data;
+      if (cachedData._cacheTimestamp) {
+        const age = Date.now() - cachedData._cacheTimestamp;
+        const effectiveExpiry = isOnline() ? CACHE_EXPIRY : OFFLINE_CACHE_EXPIRY;
+        
+        // Check if cache is still valid (different expiry times for online/offline)
+        if (age < effectiveExpiry) {
+          // Remove cache metadata before returning
+          const { _cacheTimestamp, ...data } = cachedData;
+          
+          // Check if data is an array-like object (has numeric keys) and convert it back to array
+          if (data && typeof data === 'object' && !Array.isArray(data)) {
+            const keys = Object.keys(data);
+            const isArrayLike = keys.length > 0 && keys.every(key => /^\d+$/.test(key)) && 
+                               'length' in data && typeof data.length === 'number';
+            
+            if (isArrayLike) {
+              // Convert array-like object back to proper array
+              const reconstructedArray = Array.from({ length: data.length }, (_, i) => data[i]);
+              console.log('Reconstructed array from cached object:', reconstructedArray.length);
+              
+              // Add metadata to indicate if data is stale (expired by online standards but valid offline)
+              if (!isOnline() && age > CACHE_EXPIRY) {
+                reconstructedArray._isStale = true;
+                reconstructedArray._cacheAge = age;
+              }
+              
+              return reconstructedArray;
+            }
+          }
+          
+          // Add metadata to indicate if data is stale (expired by online standards but valid offline)
+          if (!isOnline() && age > CACHE_EXPIRY) {
+            // If data is an array, we need to add metadata differently
+            if (Array.isArray(data)) {
+              // Create a new array with metadata properties
+              const staleArray = [...data];
+              staleArray._isStale = true;
+              staleArray._cacheAge = age;
+              return staleArray;
+            } else {
+              return {
+                ...data,
+                _isStale: true,
+                _cacheAge: age
+              };
+            }
+          }
+          
+          return data;
+        }
       }
     }
   } catch (error) {
@@ -84,9 +129,14 @@ const clearExpiredCache = async () => {
       const response = await cache.match(request);
       if (response) {
         const data = await response.json();
-        if (data._cacheTimestamp && 
-            Date.now() - data._cacheTimestamp > CACHE_EXPIRY) {
-          await cache.delete(request);
+        if (data._cacheTimestamp) {
+          const age = Date.now() - data._cacheTimestamp;
+          const effectiveExpiry = isOnline() ? CACHE_EXPIRY : OFFLINE_CACHE_EXPIRY;
+          
+          // Only delete if expired beyond the effective expiry time
+          if (age > effectiveExpiry) {
+            await cache.delete(request);
+          }
         }
       }
     }
@@ -120,11 +170,15 @@ export async function apiFetch(endpoint, options = {}) {
   
   // For GET requests, try to serve from cache first if offline
   if (method === 'GET') {
-    // If offline, return cached data if available
+    // If offline, return cached data if available (even if stale)
     if (!isOnline()) {
       const cachedData = await getCachedData(cacheKey);
       if (cachedData) {
-        console.log(`Serving cached data for ${endpoint} (offline)`);
+        if (cachedData._isStale) {
+          console.log(`Serving stale cached data for ${endpoint} (offline, ${Math.floor(cachedData._cacheAge / 60000)}m old)`);
+        } else {
+          console.log(`Serving cached data for ${endpoint} (offline)`);
+        }
         return cachedData;
       } else {
         throw new Error('No cached data available and you are offline. Please check your internet connection.');
@@ -178,11 +232,15 @@ export async function apiFetch(endpoint, options = {}) {
     
     return data;
   } catch (error) {
-    // If network fails and we have cached data for GET requests, use it
+    // If network fails and we have cached data for GET requests, use it (even if stale when offline)
     if (method === 'GET') {
       const cachedData = await getCachedData(cacheKey);
       if (cachedData) {
-        console.log(`Network failed, serving cached data for ${endpoint}`);
+        if (cachedData._isStale) {
+          console.log(`Network failed, serving stale cached data for ${endpoint} (${Math.floor(cachedData._cacheAge / 60000)}m old)`);
+        } else {
+          console.log(`Network failed, serving cached data for ${endpoint}`);
+        }
         return cachedData;
       }
     }
@@ -236,15 +294,29 @@ export const getCacheInfo = async () => {
         const response = await cache.match(request);
         if (response) {
           const data = await response.json();
-          const isExpired = data._cacheTimestamp && 
-                           Date.now() - data._cacheTimestamp > CACHE_EXPIRY;
-          
-          cacheInfo.entries.push({
-            url: request.url,
-            timestamp: data._cacheTimestamp,
-            expired: isExpired,
-            age: Date.now() - (data._cacheTimestamp || 0)
-          });
+          if (data._cacheTimestamp) {
+            const age = Date.now() - data._cacheTimestamp;
+            const onlineExpired = age > CACHE_EXPIRY;
+            const offlineExpired = age > OFFLINE_CACHE_EXPIRY;
+            
+            let status = 'valid';
+            if (offlineExpired) {
+              status = 'expired';
+            } else if (onlineExpired && !isOnline()) {
+              status = 'stale';
+            } else if (onlineExpired) {
+              status = 'expired';
+            }
+            
+            cacheInfo.entries.push({
+              url: request.url,
+              timestamp: data._cacheTimestamp,
+              expired: offlineExpired,
+              stale: onlineExpired && !offlineExpired,
+              status: status,
+              age: age
+            });
+          }
         }
       } catch (error) {
         // Skip invalid cache entries
@@ -261,3 +333,32 @@ export const getCacheInfo = async () => {
 
 // Initialize cache cleanup on module load
 clearExpiredCache();
+
+// Background preloading function for common/slow endpoints
+export const preloadCommonData = async () => {
+  if (!isOnline()) {
+    console.log('Offline - skipping background preload');
+    return;
+  }
+
+  console.log('Starting background preload of common data...');
+  
+  // Preload full players list (without active=true filter) in background
+  // This is typically the slowest endpoint, so we cache it proactively
+  apiFetch('/players')
+    .then(() => {
+      console.log('Background preload: Full players list cached');
+    })
+    .catch(error => {
+      console.warn('Background preload failed for players:', error.message);
+    });
+
+  // Preload tournaments in background as well
+  apiFetch('/tournaments')
+    .then(() => {
+      console.log('Background preload: Tournaments list cached');
+    })
+    .catch(error => {
+      console.warn('Background preload failed for tournaments:', error.message);
+    });
+};

@@ -29,6 +29,7 @@ import TournamentImportDialog from './TournamentImportDialog';
 import TournamentList from './TournamentList';
 import {TournamentListProvider, useTournamentList} from './TournamentListContext';
 import PlayerListSearchBar from './PlayerListSearchBar';
+import { StaleDataBanner } from './StaleDataIndicator';
 
 // Navigation types
 const NAV_TYPES = {
@@ -237,8 +238,8 @@ function MainWindowContent({user}) {
   const handleImportTournamentResults = () => setTournamentImportOpen(true);
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
-  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags} = usePlayerList();
-  const {tournaments, reloadTournaments} = useTournamentList();
+  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData} = usePlayerList();
+  const {tournaments, reloadTournaments, hasStaleData: hasStaleTournamentData} = useTournamentList();
 
   // Initialize navigation stack with player list
   const navigation = useNavigationStack([{
@@ -354,6 +355,11 @@ function MainWindowContent({user}) {
           />
         </Toolbar>
       </AppBar>
+
+      {/* Show stale data banner if offline and data is stale */}
+      <StaleDataBanner data={{ 
+        _isStale: hasStalePlayerData || hasStaleTournamentData 
+      }} />
 
       <Box sx={{
         flex: 1,

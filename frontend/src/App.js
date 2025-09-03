@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from './api';
+import { apiFetch, preloadCommonData } from './api';
 import CreateAdmin from './CreateAdmin';
 import LoginForm from './LoginForm';
 import MainWindow from './MainWindow';
@@ -29,8 +29,14 @@ function App() {
       setCheckingLogin(true);
       apiFetch('/session/user')
         .then(data => {
-          setLoggedIn(data && data.logged_in);
+          const isLoggedIn = data && data.logged_in;
+          setLoggedIn(isLoggedIn);
           setUser(data);
+          
+          // Start background preloading if user is logged in
+          if (isLoggedIn) {
+            preloadCommonData();
+          }
         })
         .catch(() => {
           setLoggedIn(false);
@@ -48,6 +54,9 @@ function App() {
     setLoggedIn(true);
     // Refetch user after login
     apiFetch('/session/user').then(setUser);
+    
+    // Start background preloading after successful login
+    preloadCommonData();
   };
 
   return (

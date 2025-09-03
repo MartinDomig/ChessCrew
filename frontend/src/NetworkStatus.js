@@ -12,6 +12,7 @@ import {
   Wifi as WifiIcon,
   WifiOff as WifiOffIcon
 } from '@mui/icons-material';
+import { preloadCommonData } from './api';
 
 const NetworkStatus = ({ showPersistent = false }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -23,6 +24,9 @@ const NetworkStatus = ({ showPersistent = false }) => {
       setIsOnline(true);
       setShowOnlineAlert(true);
       setShowOfflineAlert(false);
+      
+      // Trigger background preloading when coming back online
+      preloadCommonData();
     };
 
     const handleOffline = () => {
