@@ -31,6 +31,7 @@ import TournamentList from './TournamentList';
 import {TournamentListProvider, useTournamentList} from './TournamentListContext';
 import PlayerListSearchBar from './PlayerListSearchBar';
 import { StaleDataBanner } from './StaleDataIndicator';
+import { UpdateNotifier } from './UpdateNotifier';
 
 // Navigation types
 const NAV_TYPES = {
@@ -476,6 +477,7 @@ function MainWindowContent({user}) {
         )}
       </Box>
       <InstallPWA />
+      <UpdateNotifier />
     </Box>
   );
 }

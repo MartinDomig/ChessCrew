@@ -1,5 +1,7 @@
-const CACHE_NAME = 'chesscrew-v1';
-const API_CACHE_NAME = 'chesscrew-api-cache-v1';
+// Cache version - update this when deploying new code
+const CACHE_VERSION = 'v1756926220659';
+const CACHE_NAME = 'chesscrew-' + CACHE_VERSION;
+const API_CACHE_NAME = 'chesscrew-api-cache-' + CACHE_VERSION;
 const STATIC_ASSETS = [
   '/',
   '/static/js/main.b37dc3c3.js',
@@ -33,6 +35,13 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+// Listen for skip waiting message from client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('Service Worker activating...');
@@ -40,7 +49,10 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
+          // Delete any cache that doesn't match current version
+          if (cacheName.startsWith('chesscrew-') && 
+              cacheName !== CACHE_NAME && 
+              cacheName !== API_CACHE_NAME) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }

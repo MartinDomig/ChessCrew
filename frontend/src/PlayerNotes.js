@@ -18,7 +18,32 @@ export default function PlayerNotes({ playerId }) {
     setError(null);
     try {
       const notesData = await apiFetch(`/players/${playerId}/notes`);
-      setNotes(notesData);
+      
+      // Ensure notesData is always an array
+      let notesArray = [];
+      if (Array.isArray(notesData)) {
+        notesArray = notesData;
+      } else if (notesData && typeof notesData === 'object') {
+        // Handle case where cache returns array-like object
+        const keys = Object.keys(notesData).filter(key => key !== '_isStale' && key !== '_cacheAge');
+        const isArrayLike = keys.length > 0 && keys.every(key => /^\d+$/.test(key));
+        
+        if (isArrayLike) {
+          // Convert array-like object to proper array
+          const maxIndex = Math.max(...keys.map(k => parseInt(k, 10)));
+          notesArray = Array.from({ length: maxIndex + 1 }, (_, i) => notesData[i]).filter(item => item !== undefined);
+        } else {
+          // Check for nested data structure
+          if (Array.isArray(notesData.notes)) {
+            notesArray = notesData.notes;
+          } else if (Array.isArray(notesData.data)) {
+            notesArray = notesData.data;
+          }
+        }
+      }
+      
+      console.log('Processed notes data:', { isArray: Array.isArray(notesArray), length: notesArray.length });
+      setNotes(notesArray);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -77,10 +102,10 @@ export default function PlayerNotes({ playerId }) {
         </Box>
       ) : error ? (
         <Typography color="error">Fehler beim Laden der Notizen: {error}</Typography>
-      ) : notes.length === 0 ? (
+      ) : !Array.isArray(notes) || notes.length === 0 ? (
         <Typography color="text.secondary">Keine Notizen vorhanden.</Typography>
       ) : (
-        notes.map(note => (
+        (Array.isArray(notes) ? notes : []).map(note => (
           <Box key={note.id} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
             <Box sx={{ flex: 1 }}>
               <Typography variant="body2" color="text.secondary">
