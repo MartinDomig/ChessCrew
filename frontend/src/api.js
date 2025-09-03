@@ -335,7 +335,7 @@ export const getCacheInfo = async () => {
 clearExpiredCache();
 
 // Background preloading function for common/slow endpoints
-export const preloadCommonData = async () => {
+export const preloadCommonData = async (currentFilter = null) => {
   if (!isOnline()) {
     console.log('Offline - skipping background preload');
     return;
@@ -343,17 +343,29 @@ export const preloadCommonData = async () => {
 
   console.log('Starting background preload of common data...');
   
-  // Preload full players list (without active=true filter) in background
-  // This is typically the slowest endpoint, so we cache it proactively
-  apiFetch('/players')
-    .then(() => {
-      console.log('Background preload: Full players list cached');
-    })
-    .catch(error => {
-      console.warn('Background preload failed for players:', error.message);
-    });
+  // Only preload full players list if we're currently showing active-only players
+  // This avoids loading both lists at startup when user wants full list
+  if (currentFilter === 'active') {
+    // User is viewing active players, preload full list for when they switch
+    apiFetch('/players')
+      .then(() => {
+        console.log('Background preload: Full players list cached');
+      })
+      .catch(error => {
+        console.warn('Background preload failed for players:', error.message);
+      });
+  } else if (currentFilter === 'all') {
+    // User is viewing full list, preload active-only for when they filter
+    apiFetch('/players?active=true')
+      .then(() => {
+        console.log('Background preload: Active players list cached');
+      })
+      .catch(error => {
+        console.warn('Background preload failed for active players:', error.message);
+      });
+  }
 
-  // Preload tournaments in background as well
+  // Always preload tournaments as it's fast and commonly used
   apiFetch('/tournaments')
     .then(() => {
       console.log('Background preload: Tournaments list cached');
@@ -361,4 +373,34 @@ export const preloadCommonData = async () => {
     .catch(error => {
       console.warn('Background preload failed for tournaments:', error.message);
     });
+};
+
+// Invalidate related caches when a player is updated
+export const invalidatePlayerCaches = async (playerId = null) => {
+  if ('caches' in window) {
+    try {
+      const cacheNames = await caches.keys();
+      for (const cacheName of cacheNames) {
+        if (cacheName.includes('chesscrew-api-cache')) {
+          const cache = await caches.open(cacheName);
+          const keys = await cache.keys();
+          for (const request of keys) {
+            const url = new URL(request.url);
+            // Invalidate players list caches when a player is updated
+            if (url.pathname.includes('/players') && !url.pathname.includes('/players/')) {
+              await cache.delete(request);
+              console.log('Invalidated players list cache:', url.pathname);
+            }
+            // If a specific player ID is provided, also invalidate that player's individual cache
+            if (playerId && url.pathname.includes(`/players/${playerId}`)) {
+              await cache.delete(request);
+              console.log('Invalidated individual player cache:', url.pathname);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to invalidate player caches:', error);
+    }
+  }
 };

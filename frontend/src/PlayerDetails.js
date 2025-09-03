@@ -7,7 +7,7 @@ import CategoryChip from './CategoryChip';
 import TagChip from './TagChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import TournamentStatsChip from './TournamentStatsChip';
-import { apiFetch } from './api';
+import { apiFetch, invalidatePlayerCaches } from './api';
 import PlayerNotes from './PlayerNotes';
 import { countryCodeToFlag } from './countryUtils';
 import ContactInfo from './ContactInfo';
@@ -110,13 +110,35 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
     try {
       if (window.confirm(`Tag "${tag.name}" wirklich entfernen?`)) {
         await apiFetch(`/players/${player.id}/tags/${tag.id}`, { method: 'DELETE' });
+        
+        // Invalidate both players list cache AND individual player cache
+        await invalidatePlayerCaches(player.id);
+        
         const updated = await apiFetch(`/players/${player.id}`);
         setLocalPlayer(updated);
         setPlayerTagsKey(prev => prev + 1);
+        
         if (onPlayerUpdated) onPlayerUpdated(updated);
       }
     } catch (err) {
       console.error(err);
+      
+      // If deletion failed (e.g., tag already removed), refresh player data to sync UI
+      if (err.message && err.message.includes('nicht zugewiesen')) {
+        console.log('Tag was not assigned, refreshing player data to sync UI');
+        try {
+          // Invalidate cache first to force fresh data
+          await invalidatePlayerCaches(player.id);
+          
+          const updated = await apiFetch(`/players/${player.id}`);
+          setLocalPlayer(updated);
+          setPlayerTagsKey(prev => prev + 1);
+          
+          if (onPlayerUpdated) onPlayerUpdated(updated);
+        } catch (refreshErr) {
+          console.error('Failed to refresh player data:', refreshErr);
+        }
+      }
     }
   };
 
@@ -228,7 +250,6 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
               key={`player-${localPlayer.id}-tag-${tag.id}`}
               tag={tag}
               onDelete={onTagDelete}
-              onClick={onTagDelete}
             />
           ))}
         </Box>
@@ -245,9 +266,14 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
           onTagAdded={
             async () => {
               setTagModalOpen(false);
+              
+              // Invalidate both players list cache AND individual player cache
+              await invalidatePlayerCaches(player.id);
+              
               const updated = await apiFetch(`/players/${player.id}`);
               setLocalPlayer(updated);
               setPlayerTagsKey(k => k + 1);
+              
               if (onPlayerUpdated) onPlayerUpdated(updated);
             }
           }

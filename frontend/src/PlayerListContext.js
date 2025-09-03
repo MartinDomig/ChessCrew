@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { apiFetch, getCacheInfo } from './api';
+import { apiFetch, getCacheInfo, preloadCommonData } from './api';
 
 const PlayerListContext = createContext();
 
@@ -136,6 +136,13 @@ export function PlayerListProvider({ children }) {
       
       dispatch({ type: ACTIONS.SET_PLAYERS, payload: playersArray });
       dispatch({ type: ACTIONS.SET_HAS_STALE_DATA, payload: isStale });
+      
+      // Start background preloading of the opposite filter after successful load
+      // Only if this was not a forced network request (initial load, not refresh)
+      if (!forceNetwork) {
+        const currentFilter = state.activeOnly ? 'active' : 'all';
+        setTimeout(() => preloadCommonData(currentFilter), 1000); // Delay to not interfere with UI
+      }
     } catch (error) {
       console.error('Failed to load players:', error);
       dispatch({ type: ACTIONS.SET_LOADING, payload: false });
