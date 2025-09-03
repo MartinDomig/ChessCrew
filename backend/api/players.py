@@ -73,6 +73,15 @@ def format_note(note):
 @players_bp.route('/players', methods=['GET'])
 @login_required
 def list_players():
+    """
+    List all players with embedded notes and tournament data for offline support.
+    This endpoint now includes:
+    - Player basic info
+    - Tags
+    - Notes (for offline access in PlayerDetails)
+    - Tournaments (for offline access in PlayerDetails) 
+    - Tournament stats
+    """
     active = request.args.get('active')
     query = Player.query
     if active is not None:
@@ -84,14 +93,39 @@ def list_players():
     
     # Calculate tournament stats for each player
     player_stats = {}
+    player_tournaments = {}
     for player in players:
         player_stats[player.id] = calculate_player_tournament_stats(player.id)
+        
+        # Get tournament data for each player
+        tournament_players = db.session.query(TournamentPlayer, Tournament)\
+            .join(Tournament, TournamentPlayer.tournament_id == Tournament.id)\
+            .filter(TournamentPlayer.player_id == player.id)\
+            .order_by(Tournament.date.desc())\
+            .all()
+        
+        player_tournaments[player.id] = [
+            {
+                'id': tp.id,  # TournamentPlayer ID for disassociation
+                'tournament_id': tournament.id,
+                'tournament_name': tournament.name,
+                'date': tournament.date.isoformat() if tournament.date else None,
+                'location': tournament.location,
+                'rank': tp.rank,
+                'points': tp.points,
+                'tiebreak1': tp.tiebreak1,
+                'tiebreak2': tp.tiebreak2,
+                'games_played': len([g for g in tournament.games if g.player_id == tp.id])
+            }
+            for tp, tournament in tournament_players
+        ]
     
     return jsonify([
         {
             **p.to_dict(),
             'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in p.tags],
             'notes': [format_note(note) for note in p.notes],
+            'tournaments': player_tournaments.get(p.id, []),
             'tournament_stats': player_stats.get(p.id, {'total_points': 0, 'total_games': 0})
         }
         for p in players
@@ -112,7 +146,7 @@ def create_player():
     db.session.commit()
     return jsonify({'id': player.id, 'username': player.username, 'rating': player.rating}), 201
 
-# Get a single player by ID (including tags)
+# Get a single player by ID (including tags, notes, and tournaments)
 @players_bp.route('/players/<int:player_id>', methods=['GET'])
 @login_required
 def get_player(player_id):
@@ -123,10 +157,34 @@ def get_player(player_id):
     # Calculate tournament stats for this player
     tournament_stats = calculate_player_tournament_stats(player_id)
     
+    # Get tournament data for this player
+    tournament_players = db.session.query(TournamentPlayer, Tournament)\
+        .join(Tournament, TournamentPlayer.tournament_id == Tournament.id)\
+        .filter(TournamentPlayer.player_id == player_id)\
+        .order_by(Tournament.date.desc())\
+        .all()
+    
+    tournaments = [
+        {
+            'id': tp.id,  # TournamentPlayer ID for disassociation
+            'tournament_id': tournament.id,
+            'tournament_name': tournament.name,
+            'date': tournament.date.isoformat() if tournament.date else None,
+            'location': tournament.location,
+            'rank': tp.rank,
+            'points': tp.points,
+            'tiebreak1': tp.tiebreak1,
+            'tiebreak2': tp.tiebreak2,
+            'games_played': len([g for g in tournament.games if g.player_id == tp.id])
+        }
+        for tp, tournament in tournament_players
+    ]
+    
     return jsonify({
         **player.to_dict(),
         'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags],
         'notes': [format_note(note) for note in player.notes],
+        'tournaments': tournaments,
         'tournament_stats': tournament_stats
     })
 

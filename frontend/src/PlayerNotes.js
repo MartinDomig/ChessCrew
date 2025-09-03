@@ -4,7 +4,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { apiFetch } from './api';
 
-export default function PlayerNotes({ playerId }) {
+export default function PlayerNotes({ playerId, initialNotes = null }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -52,8 +52,17 @@ export default function PlayerNotes({ playerId }) {
   };
 
   React.useEffect(() => {
-    fetchNotes();
-  }, [playerId]);
+    // If initialNotes are provided (offline mode), use them instead of fetching
+    if (initialNotes && Array.isArray(initialNotes)) {
+      console.log('Using embedded notes data:', initialNotes.length);
+      setNotes(initialNotes);
+      setLoading(false);
+      setError(null);
+    } else {
+      // Fetch notes from API if not embedded
+      fetchNotes();
+    }
+  }, [playerId, initialNotes]);
 
   const handleSaveNote = async () => {
     setAddingNote(true);

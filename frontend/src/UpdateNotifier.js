@@ -78,7 +78,7 @@ export function UpdateNotifier() {
         action={
           <>
             <Button color="inherit" size="small" onClick={handleUpdate}>
-              Aktualisieren
+              Jetzt aktualisieren
             </Button>
             <Button color="inherit" size="small" onClick={handleDismiss}>
               Später
@@ -86,7 +86,7 @@ export function UpdateNotifier() {
           </>
         }
       >
-        Eine neue Version ist verfügbar!
+        🎉 Eine neue Version mit Verbesserungen ist verfügbar!
       </Alert>
     </Snackbar>
   );

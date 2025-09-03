@@ -11,9 +11,9 @@ try {
   // Generate new cache version with timestamp
   const newVersion = 'v' + Date.now();
   
-  // Replace the dynamic cache version with a static one
+  // Replace the cache version (handle both dynamic and static versions)
   swContent = swContent.replace(
-    /const CACHE_VERSION = 'v' \+ Date\.now\(\);.*$/m,
+    /const CACHE_VERSION = '[^']+';/,
     `const CACHE_VERSION = '${newVersion}';`
   );
   

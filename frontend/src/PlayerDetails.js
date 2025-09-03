@@ -31,8 +31,16 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
     setLoading(false);
     setLocalPlayer(player);
     
-    // Fetch tournament history
-    fetchTournaments();
+    // Check if tournaments are already embedded in player data (offline mode)
+    if (player.tournaments && Array.isArray(player.tournaments)) {
+      console.log('Using embedded tournaments data:', player.tournaments.length);
+      setTournaments(player.tournaments);
+      setTournamentsLoading(false);
+      setTournamentsError(null);
+    } else {
+      // Fetch tournament history from API if not embedded
+      fetchTournaments();
+    }
   }, [player.id]);
 
   useEffect(() => {
@@ -40,13 +48,53 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
   }, [player]);
 
   const fetchTournaments = async () => {
+    // First check if we already have embedded tournaments data
+    if (player.tournaments && Array.isArray(player.tournaments)) {
+      console.log('Using embedded tournaments data (from fetchTournaments):', player.tournaments.length);
+      setTournaments(player.tournaments);
+      setTournamentsLoading(false);
+      setTournamentsError(null);
+      return;
+    }
+
     setTournamentsLoading(true);
     setTournamentsError(null);
     try {
       const data = await apiFetch(`/players/${player.id}/tournaments`);
-      setTournaments(data);
+      
+      // Ensure data is always an array
+      let tournamentsArray = [];
+      if (Array.isArray(data)) {
+        tournamentsArray = data;
+      } else if (data && typeof data === 'object') {
+        // Handle case where cache returns array-like object
+        const keys = Object.keys(data).filter(key => key !== '_isStale' && key !== '_cacheAge');
+        const isArrayLike = keys.length > 0 && keys.every(key => /^\d+$/.test(key));
+        
+        if (isArrayLike) {
+          // Convert array-like object to proper array
+          const maxIndex = Math.max(...keys.map(k => parseInt(k, 10)));
+          tournamentsArray = Array.from({ length: maxIndex + 1 }, (_, i) => data[i]).filter(item => item !== undefined);
+        } else if (Array.isArray(data.tournaments)) {
+          tournamentsArray = data.tournaments;
+        } else if (Array.isArray(data.data)) {
+          tournamentsArray = data.data;
+        }
+      }
+      
+      console.log('Fetched tournaments data:', { isArray: Array.isArray(tournamentsArray), length: tournamentsArray.length });
+      setTournaments(tournamentsArray);
     } catch (err) {
-      setTournamentsError(err.message);
+      console.error('Failed to fetch tournaments:', err);
+      
+      // Check if we're offline and provide a friendlier message
+      if (!navigator.onLine) {
+        setTournamentsError('Offline - Turniere nicht verfügbar. Bitte mit Internet verbinden und erneut versuchen.');
+      } else if (err.message && err.message.includes('offline')) {
+        setTournamentsError('Verbindung zum Server nicht möglich. Turniere werden möglicherweise nicht aktuell angezeigt.');
+      } else {
+        setTournamentsError(`Turniere konnten nicht geladen werden: ${err.message}`);
+      }
     } finally {
       setTournamentsLoading(false);
     }
@@ -82,17 +130,26 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
         method: 'PUT'
       });
       
-      // Refresh the tournaments list
+      // Refresh the tournaments list - this will check for embedded data first
       await fetchTournaments();
       
       // Refresh player data to update any related state
       if (onPlayerUpdated) {
-        const updatedPlayer = await apiFetch(`/players/${player.id}`);
-        onPlayerUpdated(updatedPlayer);
+        try {
+          const updatedPlayer = await apiFetch(`/players/${player.id}`);
+          onPlayerUpdated(updatedPlayer);
+        } catch (refreshErr) {
+          console.error('Failed to refresh player data after tournament disassociation:', refreshErr);
+          // Don't show error to user, the disassociation was successful
+        }
       }
-    } catch (err) {
-      console.error('Error disassociating player from tournament:', err);
-      alert('Fehler beim Entfernen des Spielers vom Turnier: ' + err.message);
+    } catch (error) {
+      console.error('Failed to disassociate from tournament:', error);
+      if (!navigator.onLine) {
+        alert('Offline - Änderungen können nicht gespeichert werden. Bitte mit Internet verbinden und erneut versuchen.');
+      } else {
+        alert(`Fehler beim Entfernen vom Turnier: ${error.message}`);
+      }
     }
   };
 
@@ -308,7 +365,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
         </Box>
         
         <Box sx={{ mt: 4 }}>
-          <PlayerNotes playerId={player.id} />
+          <PlayerNotes playerId={player.id} initialNotes={player.notes} />
         </Box>
       </CardContent>
     </Card>
