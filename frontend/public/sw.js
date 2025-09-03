@@ -1,5 +1,5 @@
 // Cache version - update this when deploying new code
-const CACHE_VERSION = 'v1756929686088';
+const CACHE_VERSION = 'v1756930597138';
 const CACHE_NAME = 'chesscrew-' + CACHE_VERSION;
 const API_CACHE_NAME = 'chesscrew-api-cache-' + CACHE_VERSION;
 const STATIC_ASSETS = [

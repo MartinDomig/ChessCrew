@@ -8,6 +8,7 @@ import TagChip from './TagChip';
 import PlayerActiveStar from './PlayerActiveStar';
 import TournamentStatsChip from './TournamentStatsChip';
 import { apiFetch, invalidatePlayerCaches } from './api';
+import { reconstructArray } from './arrayUtils';
 import PlayerNotes from './PlayerNotes';
 import { countryCodeToFlag } from './countryUtils';
 import ContactInfo from './ContactInfo';
@@ -62,25 +63,8 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
     try {
       const data = await apiFetch(`/players/${player.id}/tournaments`);
       
-      // Ensure data is always an array
-      let tournamentsArray = [];
-      if (Array.isArray(data)) {
-        tournamentsArray = data;
-      } else if (data && typeof data === 'object') {
-        // Handle case where cache returns array-like object
-        const keys = Object.keys(data).filter(key => key !== '_isStale' && key !== '_cacheAge');
-        const isArrayLike = keys.length > 0 && keys.every(key => /^\d+$/.test(key));
-        
-        if (isArrayLike) {
-          // Convert array-like object to proper array
-          const maxIndex = Math.max(...keys.map(k => parseInt(k, 10)));
-          tournamentsArray = Array.from({ length: maxIndex + 1 }, (_, i) => data[i]).filter(item => item !== undefined);
-        } else if (Array.isArray(data.tournaments)) {
-          tournamentsArray = data.tournaments;
-        } else if (Array.isArray(data.data)) {
-          tournamentsArray = data.data;
-        }
-      }
+      // Use utility function to reconstruct array
+      const tournamentsArray = reconstructArray(data, 'tournaments');
       
       console.log('Fetched tournaments data:', { isArray: Array.isArray(tournamentsArray), length: tournamentsArray.length });
       setTournaments(tournamentsArray);

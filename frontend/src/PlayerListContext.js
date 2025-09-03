@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { apiFetch, getCacheInfo, preloadCommonData } from './api';
+import { extractArrayWithMetadata } from './arrayUtils';
 
 const PlayerListContext = createContext();
 
@@ -71,8 +72,17 @@ export function usePlayerList() {
 
 export function PlayerListProvider({ children }) {
   const [state, dispatch] = useReducer(playerListReducer, initialState);
+  const [lastRequestTime, setLastRequestTime] = useState(0);
 
   const reloadPlayers = async (forceNetwork = false) => {
+    // Prevent duplicate requests within 500ms
+    const now = Date.now();
+    if (!forceNetwork && now - lastRequestTime < 500) {
+      console.log('Skipping duplicate request within 500ms');
+      return;
+    }
+    setLastRequestTime(now);
+    
     dispatch({ type: ACTIONS.SET_LOADING, payload: true });
     const param = state.activeOnly ? '?active=true' : '';
     const endpoint = `/players${param}`;
@@ -93,55 +103,35 @@ export function PlayerListProvider({ children }) {
       
       const data = await apiFetch(endpoint);
       
-      // Simplify cache metadata handling
-      let playersArray = [];
-      let isStale = false;
-      
-      if (data) {
-        // Check for stale metadata (can be on arrays or objects)
-        isStale = data._isStale === true;
-        
-        // Extract the actual array data
-        if (Array.isArray(data)) {
-          // Data is already an array, use it directly
-          playersArray = data.slice(); // Create a copy to avoid mutations
-        } else if (data && typeof data === 'object') {
-          // Check if it's an array-like object with numeric keys (from cache deserialization)
-          const keys = Object.keys(data).filter(key => key !== '_isStale' && key !== '_cacheAge');
-          const isArrayLike = keys.length > 0 && keys.every(key => /^\d+$/.test(key));
-          
-          if (isArrayLike) {
-            // Convert array-like object to proper array
-            const maxIndex = Math.max(...keys.map(k => parseInt(k, 10)));
-            playersArray = Array.from({ length: maxIndex + 1 }, (_, i) => data[i]).filter(item => item !== undefined);
-            console.log('Converted array-like object to array:', playersArray.length);
-          } else if (Array.isArray(data.players)) {
-            playersArray = data.players;
-          } else if (Array.isArray(data.data)) {
-            playersArray = data.data;
-          } else {
-            // Try to extract from destructured cache metadata
-            const { _isStale, _cacheAge, ...rest } = data;
-            if (Array.isArray(rest)) {
-              playersArray = rest;
-            } else {
-              console.warn('Could not extract array from data:', data);
-              playersArray = [];
-            }
-          }
-        }
-      }
+      // Extract array and metadata using utility function
+      const { array: playersArray, isStale } = extractArrayWithMetadata(data, 'players');
       
       console.log('Processed players data:', { isArray: Array.isArray(playersArray), length: playersArray.length, isStale });
       
       dispatch({ type: ACTIONS.SET_PLAYERS, payload: playersArray });
       dispatch({ type: ACTIONS.SET_HAS_STALE_DATA, payload: isStale });
       
-      // Start background preloading of the opposite filter after successful load
-      // Only if this was not a forced network request (initial load, not refresh)
-      if (!forceNetwork) {
+      // Only start background preloading if this is the initial load (not a refresh)
+      // and we're online, and we haven't already preloaded
+      if (!forceNetwork && navigator.onLine) {
         const currentFilter = state.activeOnly ? 'active' : 'all';
-        setTimeout(() => preloadCommonData(currentFilter), 1000); // Delay to not interfere with UI
+        // Delay preloading to avoid interfering with UI and to prevent double requests
+        setTimeout(() => {
+          // Only preload if we don't already have cached data for the opposite filter
+          getCacheInfo().then(cacheInfo => {
+            const oppositeEndpoint = state.activeOnly ? '/players' : '/players?active=true';
+            const hasOppositeCache = cacheInfo.entries.some(entry => 
+              entry.url.includes(oppositeEndpoint) && entry.status === 'valid'
+            );
+            
+            if (!hasOppositeCache) {
+              console.log('Starting background preload for opposite filter');
+              preloadCommonData(currentFilter);
+            } else {
+              console.log('Opposite filter already cached, skipping preload');
+            }
+          });
+        }, 2000); // Increased delay to ensure UI is fully loaded
       }
     } catch (error) {
       console.error('Failed to load players:', error);

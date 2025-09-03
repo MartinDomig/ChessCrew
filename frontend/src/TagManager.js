@@ -3,6 +3,7 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, 
 import { apiFetch } from './api';
 import { getContrastColor } from './colorUtils';
 import { SketchPicker } from 'react-color';
+import { reconstructArray } from './arrayUtils';
 
 export default function TagManager({ player, open, onClose, onTagAdded }) {
   const [allTags, setAllTags] = useState([]);
@@ -19,26 +20,8 @@ export default function TagManager({ player, open, onClose, onTagAdded }) {
       setTagError(null);
       apiFetch('/tags')
         .then(data => {
-          // Ensure data is always an array (handle cache deserialization issues)
-          let tagsArray = [];
-          if (Array.isArray(data)) {
-            tagsArray = data;
-          } else if (data && typeof data === 'object') {
-            // Handle case where cache returns array-like object
-            const keys = Object.keys(data).filter(key => key !== '_isStale' && key !== '_cacheAge');
-            const isArrayLike = keys.length > 0 && keys.every(key => /^\d+$/.test(key));
-            
-            if (isArrayLike) {
-              // Convert array-like object to proper array
-              const maxIndex = Math.max(...keys.map(k => parseInt(k, 10)));
-              tagsArray = Array.from({ length: maxIndex + 1 }, (_, i) => data[i]).filter(item => item !== undefined);
-            } else if (Array.isArray(data.tags)) {
-              tagsArray = data.tags;
-            } else if (Array.isArray(data.data)) {
-              tagsArray = data.data;
-            }
-          }
-          
+          // Use utility function to reconstruct array
+          const tagsArray = reconstructArray(data, 'tags');
           console.log('Loaded tags:', { isArray: Array.isArray(tagsArray), length: tagsArray.length });
           setAllTags(tagsArray);
         })

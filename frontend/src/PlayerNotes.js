@@ -3,6 +3,7 @@ import { Box, Typography, CircularProgress, TextField, Button, IconButton } from
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { apiFetch } from './api';
+import { reconstructArray } from './arrayUtils';
 
 export default function PlayerNotes({ playerId, initialNotes = null }) {
   const [notes, setNotes] = useState([]);
@@ -19,28 +20,8 @@ export default function PlayerNotes({ playerId, initialNotes = null }) {
     try {
       const notesData = await apiFetch(`/players/${playerId}/notes`);
       
-      // Ensure notesData is always an array
-      let notesArray = [];
-      if (Array.isArray(notesData)) {
-        notesArray = notesData;
-      } else if (notesData && typeof notesData === 'object') {
-        // Handle case where cache returns array-like object
-        const keys = Object.keys(notesData).filter(key => key !== '_isStale' && key !== '_cacheAge');
-        const isArrayLike = keys.length > 0 && keys.every(key => /^\d+$/.test(key));
-        
-        if (isArrayLike) {
-          // Convert array-like object to proper array
-          const maxIndex = Math.max(...keys.map(k => parseInt(k, 10)));
-          notesArray = Array.from({ length: maxIndex + 1 }, (_, i) => notesData[i]).filter(item => item !== undefined);
-        } else {
-          // Check for nested data structure
-          if (Array.isArray(notesData.notes)) {
-            notesArray = notesData.notes;
-          } else if (Array.isArray(notesData.data)) {
-            notesArray = notesData.data;
-          }
-        }
-      }
+      // Use utility function to reconstruct array
+      const notesArray = reconstructArray(notesData, 'notes');
       
       console.log('Processed notes data:', { isArray: Array.isArray(notesArray), length: notesArray.length });
       setNotes(notesArray);
