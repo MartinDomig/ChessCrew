@@ -1,8 +1,9 @@
 /* PWA specific styles for mobile experience */
 
-/* iOS safe areas for notched devices */
+/* iOS safe areas for notched devices - only apply horizontal and bottom padding */
 body {
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Top padding is handled by AppBar component */
 }
 
 /* Prevent pull-to-refresh on mobile */

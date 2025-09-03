@@ -324,7 +324,16 @@ function MainWindowContent({user}) {
       display: 'flex',
       flexDirection: 'column'
     }}>
-      <AppBar position='fixed' sx={{ width: '100%' }}>
+      <AppBar 
+        position='fixed' 
+        sx={{ 
+          width: '100%',
+          paddingTop: 'env(safe-area-inset-top)',
+          '@supports (padding-top: env(safe-area-inset-top))': {
+            paddingTop: 'env(safe-area-inset-top)',
+          }
+        }}
+      >
         <Toolbar>
           {navigation.canGoBack && (
             <IconButton edge='start' color='inherit' onClick={handleBack}>
@@ -377,7 +386,10 @@ function MainWindowContent({user}) {
         flex: 1,
         display: 'flex',
         overflow: 'hidden',
-        mt: 8
+        marginTop: 'calc(64px + env(safe-area-inset-top))', // Standard AppBar height + safe area
+        '@media (max-width: 600px)': {
+          marginTop: 'calc(56px + env(safe-area-inset-top))' // Mobile AppBar height + safe area
+        }
       }}>
         {/* Master/Detail layout for tablet+ */}
         {isTabletOrLarger ? (
