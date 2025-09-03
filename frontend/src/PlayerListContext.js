@@ -1,41 +1,127 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { apiFetch } from './api';
 
 const PlayerListContext = createContext();
 
+// Action types
+const ACTIONS = {
+  SET_LOADING: 'SET_LOADING',
+  SET_PLAYERS: 'SET_PLAYERS',
+  UPDATE_PLAYER: 'UPDATE_PLAYER',
+  SET_ACTIVE_ONLY: 'SET_ACTIVE_ONLY',
+  SET_SCROLL_OFFSET: 'SET_SCROLL_OFFSET',
+  SET_SEARCH_TAGS: 'SET_SEARCH_TAGS',
+  SET_INPUT_VALUE: 'SET_INPUT_VALUE',
+};
+
+// Initial state
+const initialState = {
+  players: [],
+  loading: false,
+  activeOnly: true,
+  scrollOffset: 0,
+  searchTags: [],
+  inputValue: '',
+};
+
+// Reducer function
+function playerListReducer(state, action) {
+  switch (action.type) {
+    case ACTIONS.SET_LOADING:
+      return { ...state, loading: action.payload };
+    case ACTIONS.SET_PLAYERS:
+      return { ...state, players: action.payload, loading: false };
+    case ACTIONS.UPDATE_PLAYER:
+      return {
+        ...state,
+        players: state.players.map(p =>
+          p.id === action.payload.id ? action.payload : p
+        )
+      };
+    case ACTIONS.SET_ACTIVE_ONLY:
+      return { ...state, activeOnly: action.payload };
+    case ACTIONS.SET_SCROLL_OFFSET:
+      return { ...state, scrollOffset: action.payload };
+    case ACTIONS.SET_SEARCH_TAGS:
+      return { ...state, searchTags: action.payload };
+    case ACTIONS.SET_INPUT_VALUE:
+      return { ...state, inputValue: action.payload };
+    default:
+      return state;
+  }
+}
+
 export function usePlayerList() {
-  return useContext(PlayerListContext);
+  const context = useContext(PlayerListContext);
+  if (!context) {
+    throw new Error('usePlayerList must be used within a PlayerListProvider');
+  }
+  return context;
 }
 
 export function PlayerListProvider({ children }) {
-  const [players, setPlayers] = useState([]);
-  const [activeOnly, setActiveOnly] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [scrollOffset, setScrollOffset] = useState(0);
+  const [state, dispatch] = useReducer(playerListReducer, initialState);
 
   const reloadPlayers = () => {
-    setLoading(true);
-    const param = activeOnly ? '?active=true' : '';
+    dispatch({ type: ACTIONS.SET_LOADING, payload: true });
+    const param = state.activeOnly ? '?active=true' : '';
     apiFetch(`/players${param}`)
-      .then(data => {
-        setPlayers(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      .then(data => dispatch({ type: ACTIONS.SET_PLAYERS, payload: data }))
+      .catch(() => dispatch({ type: ACTIONS.SET_LOADING, payload: false }));
   };
 
-  // Update a single player in the cached list
   const updatePlayer = (updatedPlayer) => {
-    setPlayers(prev => prev.map(p => p.id === updatedPlayer.id ? updatedPlayer : p));
+    dispatch({ type: ACTIONS.UPDATE_PLAYER, payload: updatedPlayer });
+  };
+
+  const setActiveOnly = (activeOnly) => {
+    dispatch({ type: ACTIONS.SET_ACTIVE_ONLY, payload: activeOnly });
+  };
+
+  const setScrollOffset = (offset) => {
+    dispatch({ type: ACTIONS.SET_SCROLL_OFFSET, payload: offset });
+  };
+
+  const setSearchTags = (tags) => {
+    dispatch({ type: ACTIONS.SET_SEARCH_TAGS, payload: tags });
+  };
+
+  const setInputValue = (value) => {
+    if (typeof value === 'function') {
+      // Support functional updates like React's useState
+      const currentValue = state.inputValue;
+      const newValue = value(currentValue);
+      dispatch({ type: ACTIONS.SET_INPUT_VALUE, payload: newValue });
+    } else {
+      dispatch({ type: ACTIONS.SET_INPUT_VALUE, payload: value });
+    }
   };
 
   useEffect(() => {
     reloadPlayers();
     // eslint-disable-next-line
-  }, [activeOnly]);
+  }, [state.activeOnly]);
+
+  const value = {
+    // State
+    players: state.players,
+    loading: state.loading,
+    activeOnly: state.activeOnly,
+    scrollOffset: state.scrollOffset,
+    searchTags: state.searchTags,
+    inputValue: typeof state.inputValue === 'string' ? state.inputValue : '',
+    
+    // Actions
+    reloadPlayers,
+    updatePlayer,
+    setActiveOnly,
+    setScrollOffset,
+    setSearchTags,
+    setInputValue,
+  };
 
   return (
-    <PlayerListContext.Provider value={{ players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, loading, scrollOffset, setScrollOffset }}>
+    <PlayerListContext.Provider value={value}>
       {children}
     </PlayerListContext.Provider>
   );

@@ -6,15 +6,20 @@ import { Box, Autocomplete, TextField } from '@mui/material';
 import { apiFetch } from './api';
 
 export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
-  const { scrollOffset, setScrollOffset } = usePlayerList();
+  const { 
+    scrollOffset, 
+    setScrollOffset,
+    searchTags,
+    setSearchTags,
+    inputValue,
+    setInputValue
+  } = usePlayerList();
   const [allTags, setAllTags] = useState([]);
-  const [searchTags, setSearchTags] = useState([]);
-  const [inputValue, setInputValue] = useState("");
   const [debouncedInput, setDebouncedInput] = useState("");
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedInput(inputValue);
+      setDebouncedInput(inputValue || '');
     }, 300);
     return () => clearTimeout(handler);
   }, [inputValue]);
@@ -32,22 +37,26 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange }) {
 
   const handleCategoryClick = (category) => {
     // add category to input value if it is not already there
-    if (!inputValue.includes(category)) {
-      setInputValue(value => `${value} ${category}`.trim());
+    const currentValue = typeof inputValue === 'string' ? inputValue : '';
+    if (!currentValue.includes(category)) {
+      setInputValue(value => {
+        const current = typeof value === 'string' ? value : '';
+        return `${current} ${category}`.trim();
+      });
     }
   };
 
   const handleAutocompleteChange = (event, value) => {
-    console.log('Autocomplete changed:', value);
     setSearchTags(value);
   };
 
   const handleInputChange = (event, value) => {
-    setInputValue(value);
+    setInputValue(typeof value === 'string' ? value : '');
   };
 
   // Separate tag and string search logic
-  const stringTerms = debouncedInput.split(/\s+/).filter(Boolean);
+  const currentDebouncedInput = debouncedInput || '';
+  const stringTerms = currentDebouncedInput.split(/\s+/).filter(Boolean);
   const filteredPlayers = players.filter(player => {
     // AND logic for tags: player must have all selected tags
     if (searchTags.length > 0) {

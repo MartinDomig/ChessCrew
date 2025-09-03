@@ -14,7 +14,7 @@ import Tabs from '@mui/material/Tabs';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import React, {useState} from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 
 import {apiFetch} from './api';
 import BurgerMenu from './BurgerMenu';
@@ -28,86 +28,235 @@ import TournamentImportDialog from './TournamentImportDialog';
 import TournamentList from './TournamentList';
 import {TournamentListProvider, useTournamentList} from './TournamentListContext';
 
+// Navigation types
+const NAV_TYPES = {
+  PLAYER_LIST: 'player_list',
+  TOURNAMENT_LIST: 'tournament_list',
+  PLAYER_DETAIL: 'player_detail',
+  TOURNAMENT_DETAIL: 'tournament_detail'
+};
+
+// Navigation stack hook
+function useNavigationStack(initialStack = []) {
+  const [stack, setStack] = useState(initialStack);
+
+  const push = useCallback((navObject) => {
+    setStack(prev => [...prev, { ...navObject, id: Date.now() + Math.random() }]);
+  }, []);
+
+  const pop = useCallback(() => {
+    setStack(prev => prev.slice(0, -1));
+  }, []);
+
+  const replace = useCallback((navObject) => {
+    setStack(prev => [...prev.slice(0, -1), { ...navObject, id: Date.now() + Math.random() }]);
+  }, []);
+
+  const clear = useCallback(() => {
+    setStack([]);
+  }, []);
+
+  const current = stack[stack.length - 1] || null;
+  const canGoBack = stack.length > 1;
+
+  return {
+    stack,
+    current,
+    canGoBack,
+    push,
+    pop,
+    replace,
+    clear
+  };
+}
+
+// Navigation renderer component
+function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, handleImportTournamentResults, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments }) {
+  if (!navObject) return null;
+
+  const { type, data } = navObject;
+
+  switch (type) {
+    case NAV_TYPES.PLAYER_LIST:
+      return (
+        <Box sx={{
+          width: '100%',
+          height: '100%',
+          overflowY: 'auto',
+          position: 'relative',
+        }}>
+          {/* Player-specific actions bar */}
+          <Box sx={{
+            display: 'flex',
+            gap: 1,
+            p: 1,
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            background: '#fafafa',
+            borderBottom: '1px solid #eee',
+            alignItems: 'center'
+          }}>
+            {isAdmin && (
+              <IconButton
+                color='primary'
+                onClick={handleImportClick}
+                size='small'
+                title='Import Meldekartei'
+                sx={{ p: 0.5 }}
+              >
+                <ImportExportIcon fontSize='small' />
+              </IconButton>
+            )}
+            <IconButton
+              color="primary"
+              onClick={() => exportEmailList(players)}
+              size="small"
+              title="Export E-Mail Liste"
+              sx={{ p: 0.5 }}
+            >
+              <EmailIcon fontSize="small" />
+            </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+              <FilterListIcon fontSize="small" color="action" />
+              <Switch
+                edge='end'
+                checked={activeOnly}
+                onChange={(_, checked) => setActiveOnly(checked)}
+                color='primary'
+                size='small'
+              />
+            </Box>
+          </Box>
+          <PlayerList
+            players={players}
+            onPlayerClick={(player) => onNavigate({
+              type: NAV_TYPES.PLAYER_DETAIL,
+              data: { player }
+            })}
+          />
+        </Box>
+      );
+
+    case NAV_TYPES.TOURNAMENT_LIST:
+      return (
+        <Box sx={{
+          width: '100%',
+          height: '100%',
+          overflowY: 'auto',
+          position: 'relative',
+        }}>
+          {/* Tournament-specific actions bar */}
+          <Box sx={{
+            display: 'flex',
+            gap: 1,
+            p: 1,
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            background: '#fafafa',
+            borderBottom: '1px solid #eee',
+            alignItems: 'center'
+          }}>
+            {isAdmin && (
+              <IconButton
+                color="primary"
+                onClick={handleImportTournamentResults}
+                size="small"
+                title="Import Turnierergebnisse"
+                sx={{ p: 0.5 }}
+              >
+                <SportsScoreIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Box>
+          <TournamentList
+            tournaments={tournaments}
+            onTournamentClick={(tournament) => onNavigate({
+              type: NAV_TYPES.TOURNAMENT_DETAIL,
+              data: { tournament }
+            })}
+          />
+        </Box>
+      );
+
+    case NAV_TYPES.PLAYER_DETAIL:
+      return (
+        <Box sx={{ flex: 1, overflowY: 'auto', height: '100%' }}>
+          <PlayerDetails
+            player={data.player}
+            onPlayerUpdated={onPlayerUpdated}
+            onTournamentClick={(tournament, player) => onNavigate({
+              type: NAV_TYPES.TOURNAMENT_DETAIL,
+              data: { tournament, fromPlayer: player }
+            })}
+          />
+        </Box>
+      );
+
+    case NAV_TYPES.TOURNAMENT_DETAIL:
+      return (
+        <Box sx={{ flex: 1, overflowY: 'auto', height: '100%' }}>
+          <TournamentDetails
+            tournament={data.tournament}
+            onPlayerClick={(player, tournament) => onNavigate({
+              type: NAV_TYPES.PLAYER_DETAIL,
+              data: { player, fromTournament: tournament }
+            })}
+            onDelete={onTournamentDelete}
+            onUpdate={onTournamentUpdate}
+          />
+        </Box>
+      );
+
+    default:
+      return null;
+  }
+}
+
 function MainWindowContent({user}) {
-  // Tab state: 0 = players, 1 = tournaments
-  const [tab, setTab] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
   const handleImportClick = () => setImportOpen(true);
   const [tournamentImportOpen, setTournamentImportOpen] = useState(false);
   const handleImportTournamentResults = () => setTournamentImportOpen(true);
   const isAdmin = user && user.admin;
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [selectedTournament, setSelectedTournament] = useState(null);
-  // Navigation stack for nested views
-  const [navigationStack, setNavigationStack] = useState([]);
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
-  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly} =
-      usePlayerList();
+  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly} = usePlayerList();
   const {tournaments, reloadTournaments} = useTournamentList();
 
-  // On mobile, show either master or detail for current tab
-  const showPlayerMaster =
-      tab === 0 && (isTabletOrLarger || selectedPlayer === null);
-  const showPlayerDetail =
-      tab === 0 && (isTabletOrLarger || selectedPlayer !== null);
-  const showTournamentMaster =
-      tab === 1 && (isTabletOrLarger || selectedTournament === null);
-  const showTournamentDetail =
-      tab === 1 && (isTabletOrLarger || selectedTournament !== null);
+  // Initialize navigation stack with player list
+  const navigation = useNavigationStack([{
+    type: NAV_TYPES.PLAYER_LIST,
+    data: {}
+  }]);
 
-  const handleBack = () => {
-    // Handle navigation stack for nested views
-    if (navigationStack.length > 0) {
-      const previousView = navigationStack[navigationStack.length - 1];
-      setNavigationStack(prev => prev.slice(0, -1));
-      
-      if (previousView.type === 'tournament') {
-        setSelectedTournament(previousView.data);
-        setSelectedPlayer(null);
-      } else if (previousView.type === 'player') {
-        setSelectedPlayer(previousView.data);
-        setSelectedTournament(null);
-      }
-    } else {
-      // Default back behavior - return to master list
-      if (tab === 0)
-        setSelectedPlayer(null);
-      else
-        setSelectedTournament(null);
+  // Handle navigation
+  const handleNavigate = useCallback((navObject) => {
+    navigation.push(navObject);
+  }, [navigation]);
+
+  const handleBack = useCallback(() => {
+    navigation.pop();
+  }, [navigation]);
+
+  const handleTournamentDelete = useCallback((tournament_id) => {
+    // If we're currently viewing the deleted tournament, go back
+    if (navigation.current?.type === NAV_TYPES.TOURNAMENT_DETAIL &&
+        navigation.current?.data?.tournament?.id === tournament_id) {
+      navigation.pop();
     }
-  };
+  }, [navigation]);
 
-  // Navigation helpers for nested views
-  const navigateToPlayerFromTournament = (player, tournament) => {
-    if (!isTabletOrLarger) {
-      setNavigationStack(prev => [...prev, { type: 'tournament', data: tournament }]);
-      setSelectedPlayer(player);
-      setSelectedTournament(null);
-      setTab(0); // Switch to player tab
+  const handleTournamentUpdate = useCallback((updatedTournament) => {
+    // Update the tournament in the current navigation object if it's a tournament detail
+    if (navigation.current?.type === NAV_TYPES.TOURNAMENT_DETAIL) {
+      navigation.replace({
+        ...navigation.current,
+        data: { ...navigation.current.data, tournament: updatedTournament }
+      });
     }
-  };
-
-  const navigateToTournamentFromPlayer = (tournament, player) => {
-    if (!isTabletOrLarger) {
-      setNavigationStack(prev => [...prev, { type: 'player', data: player }]);
-      setSelectedTournament(tournament);
-      setSelectedPlayer(null);
-      setTab(1); // Switch to tournament tab
-    }
-  };
-
-  const handleTournamentDelete = (tournament_id) => {
-    if (selectedTournament && selectedTournament.id === tournament_id) {
-      setSelectedTournament(null);
-    }
-  };
-
-  // Check if we're in a nested view (for back button visibility)
-  const isInNestedView = !isTabletOrLarger && (
-    (tab === 0 && selectedPlayer) || 
-    (tab === 1 && selectedTournament) ||
-    navigationStack.length > 0
-  );
+    reloadTournaments();
+  }, [navigation, reloadTournaments]);
 
   const handleLogout = async () => {
     try {
@@ -118,178 +267,146 @@ function MainWindowContent({user}) {
     }
   };
 
-  // Tab icons for mobile UI
-  const tabIcons = [<PeopleIcon />, <EmojiEventsIcon />];
+  // Determine current tab based on navigation
+  const currentTab = navigation.current?.type === NAV_TYPES.TOURNAMENT_LIST ||
+                    navigation.current?.type === NAV_TYPES.TOURNAMENT_DETAIL ? 1 : 0;
 
-  const handleTournamentUpdate = (updatedTournament) => {
-    // Update the selected tournament
-    setSelectedTournament(updatedTournament);
-    // Reload the tournament list to reflect changes
-    reloadTournaments();
-  };
+  // Handle tab changes
+  const handleTabChange = useCallback((_, newTab) => {
+    // Clear navigation stack and search state, then start fresh with the new tab's list
+    navigation.clear();
+    
+    if (newTab === 0) {
+      navigation.push({ type: NAV_TYPES.PLAYER_LIST, data: {} });
+    } else {
+      navigation.push({ type: NAV_TYPES.TOURNAMENT_LIST, data: {} });
+    }
+  }, [navigation]);
 
   return (
     <Box sx={{
-    height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <AppBar position='fixed' sx={{
-    width: '100%' }}>
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      <AppBar position='fixed' sx={{ width: '100%' }}>
         <Toolbar>
-          {isInNestedView && (
+          {navigation.canGoBack && (
             <IconButton edge='start' color='inherit' onClick={handleBack}>
               <ArrowBackIcon />
             </IconButton>
           )}
           <Tabs
-  value = {tab} onChange = {
-    (_, v) => {
-      setTab(v);
-      setSelectedPlayer(null);
-      setSelectedTournament(null);
-    }
-  } sx = {
-    { minHeight: 48 }
-  } textColor = 'inherit'
-  indicatorColor = 'secondary'
+            value={currentTab}
+            onChange={handleTabChange}
+            sx={{ minHeight: 48 }}
+            textColor='inherit'
+            indicatorColor='secondary'
             slotProps={{
-    indicator: {style: {height: 3}} }}
-          >
-            <Tab icon={<PeopleIcon />} sx={
-    { minWidth: 48 }} />
-            <Tab icon={<EmojiEventsIcon />
-}
-sx = {
-  {
-    minWidth: 48
-  }
-} />
-          </Tabs > <Box sx = {
-       {
-         ml: 'auto'
-       }
-     }><BurgerMenu onLogout = {handleLogout} />
-          </Box>
-    <ImportDialog open = {importOpen} onClose =
-         {() => setImportOpen(false)} onImported =
-             {reloadPlayers} />
-          <TournamentImportDialog open={tournamentImportOpen} onClose={() => setTournamentImportOpen(false)} onImported={
-    reloadTournaments} />
-    </Toolbar>
-      </AppBar><Box sx = {
-       {
-         flex: 1, display: 'flex', overflow: 'hidden', mt: 8
-       }
-     }> {showPlayerMaster && (
-          <Box
-            sx={{
-    width: {xs: '100%', md: 320},
-        borderRight: isTabletOrLarger ? '1px solid #ddd' : 'none',
-        display: {xs: selectedPlayer ? 'none' : 'block', md: 'block'},
-        height: '100%', overflowY: 'auto', position: 'relative',
+              indicator: { style: { height: 3 } }
             }}
           >
-            {/* Player-specific actions bar */}
+            <Tab icon={<PeopleIcon />} sx={{ minWidth: 48 }} />
+            <Tab icon={<EmojiEventsIcon />} sx={{ minWidth: 48 }} />
+          </Tabs>
+          <Box sx={{ ml: 'auto' }}>
+            <BurgerMenu onLogout={handleLogout} />
+          </Box>
+          <ImportDialog
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+            onImported={reloadPlayers}
+          />
+          <TournamentImportDialog
+            open={tournamentImportOpen}
+            onClose={() => setTournamentImportOpen(false)}
+            onImported={reloadTournaments}
+          />
+        </Toolbar>
+      </AppBar>
+
+      <Box sx={{
+        flex: 1,
+        display: 'flex',
+        overflow: 'hidden',
+        mt: 8
+      }}>
+        {/* Master/Detail layout for tablet+ */}
+        {isTabletOrLarger ? (
+          <>
+            {/* Master panel */}
             <Box sx={{
-    display: 'flex', gap: 1, p: 1, position: 'sticky', top: 0, zIndex: 1,
-        background: '#fafafa', borderBottom: '1px solid #eee',
-        alignItems: 'center'
+              width: 320,
+              borderRight: '1px solid #ddd',
+              height: '100%',
+              overflowY: 'auto'
             }}>
-              {isAdmin && (
-                <IconButton
-            color = 'primary'
-            onClick = {handleImportClick} size = 'small'
-            title = 'Import Meldekartei'
-            sx = {
-              {
-                p: 0.5
-              }
-            } > <ImportExportIcon fontSize = 'small' />
-                </IconButton>
-              )}
-              <IconButton 
-                color="primary" 
-                onClick={() => exportEmailList(players)} 
-                size="small" 
-                title="Export E-Mail Liste"
-                sx={{ p: 0.5 }}
-              >
-                <EmailIcon fontSize="small" />
-                </IconButton>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-                <FilterListIcon fontSize="small" color="action" /><
-                Switch
-            edge = 'end'
-            checked = {activeOnly} onChange = {
-                (_, checked) => setActiveOnly(checked)} color = 'primary'
-                  size='small'
-                />
-              </Box>
+              <NavigationRenderer
+                navObject={
+                  navigation.current?.type === NAV_TYPES.PLAYER_DETAIL ?
+                    { type: NAV_TYPES.PLAYER_LIST, data: {} } :
+                  navigation.current?.type === NAV_TYPES.TOURNAMENT_DETAIL ?
+                    { type: NAV_TYPES.TOURNAMENT_LIST, data: {} } :
+                  navigation.current
+                }
+                onNavigate={handleNavigate}
+                onPlayerUpdated={updatePlayer}
+                onTournamentUpdate={handleTournamentUpdate}
+                onTournamentDelete={handleTournamentDelete}
+                isAdmin={isAdmin}
+                handleImportClick={handleImportClick}
+                handleImportTournamentResults={handleImportTournamentResults}
+                players={players}
+                tournaments={tournaments}
+                activeOnly={activeOnly}
+                setActiveOnly={setActiveOnly}
+                reloadPlayers={reloadPlayers}
+                reloadTournaments={reloadTournaments}
+              />
             </Box>
-            <PlayerList players={players} onPlayerClick={
-    setSelectedPlayer} />
-          </Box>
-        )
-}
-{showPlayerDetail && selectedPlayer && (
-          <Box sx={{ flex: 1, overflowY: 'auto', height: '100%' }}>
-            <PlayerDetails 
-              player={selectedPlayer} 
-              onPlayerUpdated={updatePlayer}
-              onTournamentClick={navigateToTournamentFromPlayer}
-            />
-          </Box>
+
+            {/* Detail panel */}
+            {(navigation.current?.type === NAV_TYPES.PLAYER_DETAIL ||
+              navigation.current?.type === NAV_TYPES.TOURNAMENT_DETAIL) && (
+              <NavigationRenderer
+                navObject={navigation.current}
+                onNavigate={handleNavigate}
+                onPlayerUpdated={updatePlayer}
+                onTournamentUpdate={handleTournamentUpdate}
+                onTournamentDelete={handleTournamentDelete}
+                isAdmin={isAdmin}
+                handleImportClick={handleImportClick}
+                handleImportTournamentResults={handleImportTournamentResults}
+                players={players}
+                tournaments={tournaments}
+                activeOnly={activeOnly}
+                setActiveOnly={setActiveOnly}
+                reloadPlayers={reloadPlayers}
+                reloadTournaments={reloadTournaments}
+              />
+            )}
+          </>
+        ) : (
+          /* Mobile layout - show current navigation object */
+          <NavigationRenderer
+            navObject={navigation.current}
+            onNavigate={handleNavigate}
+            onPlayerUpdated={updatePlayer}
+            onTournamentUpdate={handleTournamentUpdate}
+            onTournamentDelete={handleTournamentDelete}
+            isAdmin={isAdmin}
+            handleImportClick={handleImportClick}
+            handleImportTournamentResults={handleImportTournamentResults}
+            players={players}
+            tournaments={tournaments}
+            activeOnly={activeOnly}
+            setActiveOnly={setActiveOnly}
+            reloadPlayers={reloadPlayers}
+            reloadTournaments={reloadTournaments}
+          />
         )}
-        {/* Master/Detail for Tournaments */}
-        {showTournamentMaster && (
-          <Box
-            sx={{
-              width: { xs: '100%', md: 320 },
-              borderRight: isTabletOrLarger ? '1px solid #ddd' : 'none',
-              display: { xs: selectedTournament ? 'none' : 'block', md: 'block' },
-              height: '100%', 
-              overflowY: 'auto',
-              position: 'relative',
-            }}
-          >
-            {/* Tournament-specific actions bar */}
-            <Box sx={{ 
-              display: 'flex', 
-              gap: 1, 
-              p: 1, 
-              position: 'sticky', 
-              top: 0, 
-              zIndex: 1, 
-              background: '#fafafa', 
-              borderBottom: '1px solid #eee',
-              alignItems: 'center'
-            }}>
-              {isAdmin && (
-                <IconButton 
-                  color="primary" 
-                  onClick={handleImportTournamentResults} 
-                  size="small" 
-                  title="Import Turnierergebnisse"
-                  sx={{ p: 0.5 }}
-                >
-                  <SportsScoreIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-            <TournamentList tournaments={tournaments} onTournamentClick={
-      setSelectedTournament} />
-          </Box>
-        )
-}
-{
-    showTournamentDetail && selectedTournament &&
-    (<Box sx={{ flex: 1, overflowY: 'auto', height: '100%' }}>
-      <TournamentDetails tournament={selectedTournament}
-        onPlayerClick={navigateToPlayerFromTournament}
-        onDelete={handleTournamentDelete}
-        onUpdate={handleTournamentUpdate} />
-    </Box>)
-}
       </Box>
-         </Box>
+    </Box>
   );
 }
 
@@ -298,8 +415,9 @@ function MainWindow({ user }) {
     <PlayerListProvider>
       <TournamentListProvider>
         <MainWindowContent user={user} />
-         </TournamentListProvider>
-    </PlayerListProvider>);
+      </TournamentListProvider>
+    </PlayerListProvider>
+  );
 }
 
 export default MainWindow;
