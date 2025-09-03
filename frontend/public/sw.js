@@ -1,4 +1,5 @@
 const CACHE_NAME = 'chesscrew-v1';
+const API_CACHE_NAME = 'chesscrew-api-cache-v1';
 const STATIC_ASSETS = [
   '/',
   '/static/js/main.b37dc3c3.js',
@@ -39,7 +40,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
@@ -63,6 +64,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const url = new URL(event.request.url);
+  const isApiRequest = url.pathname.startsWith('/api/');
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -72,7 +76,30 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
 
-        // Otherwise, fetch from network
+        // For API requests, try the API cache
+        if (isApiRequest) {
+          return caches.open(API_CACHE_NAME).then(apiCache => {
+            return apiCache.match(event.request).then(apiResponse => {
+              if (apiResponse) {
+                console.log('Serving API from cache:', event.request.url);
+                return apiResponse;
+              }
+
+              // If not in cache, fetch from network and cache if successful
+              return fetch(event.request).then((response) => {
+                if (!response || response.status !== 200 || response.type !== 'basic') {
+                  return response;
+                }
+
+                const responseToCache = response.clone();
+                apiCache.put(event.request, responseToCache);
+                return response;
+              });
+            });
+          });
+        }
+
+        // Otherwise, fetch from network for non-API requests
         return fetch(event.request).then((response) => {
           // Don't cache non-successful responses
           if (!response || response.status !== 200 || response.type !== 'basic') {

@@ -3,6 +3,7 @@ import { apiFetch } from './api';
 import CreateAdmin from './CreateAdmin';
 import LoginForm from './LoginForm';
 import MainWindow from './MainWindow';
+import NetworkStatus from './NetworkStatus';
 import { Box, CircularProgress, CssBaseline } from '@mui/material';
 import './pwa.css';
 
@@ -52,6 +53,7 @@ function App() {
   return (
     <>
       <CssBaseline />
+      <NetworkStatus />
       {error && <p style={{ color: 'red' }}>Error: {error}</p>}
       {(loading || checkingLogin) ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>

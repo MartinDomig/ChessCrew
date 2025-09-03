@@ -19,6 +19,7 @@ import React, {useState, useCallback, useEffect} from 'react';
 import {apiFetch} from './api';
 import BurgerMenu from './BurgerMenu';
 import {exportEmailList} from './csvUtils';
+import InstallPWA from './InstallPWA';
 import ImportDialog from './ImportDialog';
 import PlayerDetails from './PlayerDetails';
 import PlayerList from './PlayerList';
@@ -441,6 +442,7 @@ function MainWindowContent({user}) {
           />
         )}
       </Box>
+      <InstallPWA />
     </Box>
   );
 }

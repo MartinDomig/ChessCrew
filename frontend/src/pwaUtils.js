@@ -1,6 +1,5 @@
 // PWA utilities for managing install prompts and offline status
 
-let deferredPrompt;
 let isInstalled = false;
 
 // Check if the app is installed
@@ -14,21 +13,10 @@ export const isAppInstalled = () => {
 export const initializePWA = () => {
   isInstalled = isAppInstalled();
   
-  // Listen for the beforeinstallprompt event
-  window.addEventListener('beforeinstallprompt', (e) => {
-    console.log('PWA install prompt available');
-    e.preventDefault();
-    deferredPrompt = e;
-    
-    // You can show a custom install button here
-    showInstallButton();
-  });
-
   // Listen for app installed event
   window.addEventListener('appinstalled', (e) => {
     console.log('PWA was installed');
     isInstalled = true;
-    hideInstallButton();
   });
 
   // Listen for online/offline events
@@ -41,38 +29,6 @@ export const initializePWA = () => {
     console.log('App is offline');
     showOfflineStatus();
   });
-};
-
-// Show install button
-const showInstallButton = () => {
-  // You can implement a custom install button UI here
-  console.log('Install button should be shown');
-};
-
-// Hide install button
-const hideInstallButton = () => {
-  // Hide the install button
-  console.log('Install button should be hidden');
-};
-
-// Trigger the install prompt
-export const installPWA = async () => {
-  if (!deferredPrompt) {
-    console.log('Install prompt not available');
-    return false;
-  }
-
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  
-  if (outcome === 'accepted') {
-    console.log('User accepted the install prompt');
-  } else {
-    console.log('User dismissed the install prompt');
-  }
-  
-  deferredPrompt = null;
-  return outcome === 'accepted';
 };
 
 // Show online status
