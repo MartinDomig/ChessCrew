@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { usePlayerList } from './PlayerListContext';
 import { FixedSizeList as List } from 'react-window';
 import PlayerCard from './PlayerCard';
-import { Box } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { apiFetch } from './api';
 
 export default function PlayerList({ players, onPlayerClick, onStatusChange, showSearchBar = true }) {
@@ -46,9 +46,14 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange, sho
   }, []);
 
   const handleTagClick = (tag) => {
-    if (!searchTags.includes(tag.name)) {
-      setSearchTags(tags => [...tags, tag.name]);
-    }
+    setSearchTags(tags => {
+      const currentTags = Array.isArray(tags) ? tags : [];
+      // Check if tag is already in the list
+      if (currentTags.includes(tag.name)) {
+        return currentTags; // No change needed
+      }
+      return [...currentTags, tag.name];
+    });
   };
 
   const handleCategoryClick = (category) => {
@@ -82,7 +87,18 @@ export default function PlayerList({ players, onPlayerClick, onStatusChange, sho
 
   return (
     <Box ref={containerRef} sx={{ width: '100%', height: '100%' }}>
-      {filteredPlayers.length === 0 ? null : (
+      {filteredPlayers.length === 0 ? (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          minHeight: '200px'
+        }}>
+          <Typography variant="body1" color="text.secondary">
+            No players found
+          </Typography>
+        </Box>
+      ) : (
         <List
           ref={listRef}
           height={containerHeight}

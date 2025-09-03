@@ -7,6 +7,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import SportsScoreIcon from '@mui/icons-material/SportsScore';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import Switch from '@mui/material/Switch';
 import Tab from '@mui/material/Tab';
@@ -74,7 +75,7 @@ function useNavigationStack(initialStack = []) {
 }
 
 // Navigation renderer component
-function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, handleImportTournamentResults, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments }) {
+function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, handleImportTournamentResults, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading }) {
   if (!navObject) return null;
 
   const { type, data } = navObject;
@@ -143,14 +144,25 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
             px: 1,
             py: 0.5
           }}>
-            <PlayerList
-              players={players}
-              onPlayerClick={(player) => onNavigate({
-                type: NAV_TYPES.PLAYER_DETAIL,
-                data: { player }
-              })}
-              showSearchBar={false}
-            />
+            {playersLoading ? (
+              <Box sx={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '200px'
+              }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <PlayerList
+                players={players}
+                onPlayerClick={(player) => onNavigate({
+                  type: NAV_TYPES.PLAYER_DETAIL,
+                  data: { player }
+                })}
+                showSearchBar={false}
+              />
+            )}
           </Box>
         </Box>
       );
@@ -238,7 +250,7 @@ function MainWindowContent({user}) {
   const handleImportTournamentResults = () => setTournamentImportOpen(true);
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
-  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData} = usePlayerList();
+  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading} = usePlayerList();
   const {tournaments, reloadTournaments, hasStaleData: hasStaleTournamentData} = useTournamentList();
 
   // Initialize navigation stack with player list
@@ -404,6 +416,7 @@ function MainWindowContent({user}) {
                 setActiveOnly={setActiveOnly}
                 reloadPlayers={reloadPlayers}
                 reloadTournaments={reloadTournaments}
+                playersLoading={playersLoading}
               />
             </Box>
 
@@ -425,6 +438,7 @@ function MainWindowContent({user}) {
                 setActiveOnly={setActiveOnly}
                 reloadPlayers={reloadPlayers}
                 reloadTournaments={reloadTournaments}
+                playersLoading={playersLoading}
               />
             )}
           </>
@@ -445,6 +459,7 @@ function MainWindowContent({user}) {
             setActiveOnly={setActiveOnly}
             reloadPlayers={reloadPlayers}
             reloadTournaments={reloadTournaments}
+            playersLoading={playersLoading}
           />
         )}
       </Box>

@@ -49,7 +49,9 @@ function playerListReducer(state, action) {
     case ACTIONS.SET_SCROLL_OFFSET:
       return { ...state, scrollOffset: action.payload };
     case ACTIONS.SET_SEARCH_TAGS:
-      return { ...state, searchTags: action.payload };
+      // Ensure payload is always an array
+      const tags = Array.isArray(action.payload) ? action.payload : [];
+      return { ...state, searchTags: tags };
     case ACTIONS.SET_INPUT_VALUE:
       return { ...state, inputValue: action.payload };
     case ACTIONS.SET_HAS_STALE_DATA:
@@ -167,8 +169,17 @@ export function PlayerListProvider({ children }) {
     dispatch({ type: ACTIONS.SET_SCROLL_OFFSET, payload: offset });
   };
 
-  const setSearchTags = (tags) => {
-    dispatch({ type: ACTIONS.SET_SEARCH_TAGS, payload: tags });
+  const setSearchTags = (tagsOrUpdater) => {
+    if (typeof tagsOrUpdater === 'function') {
+      // Support functional updates like React's setState
+      const currentTags = Array.isArray(state.searchTags) ? state.searchTags : [];
+      const newTags = tagsOrUpdater(currentTags);
+      const safeNewTags = Array.isArray(newTags) ? newTags : [];
+      dispatch({ type: ACTIONS.SET_SEARCH_TAGS, payload: safeNewTags });
+    } else {
+      const safeTags = Array.isArray(tagsOrUpdater) ? tagsOrUpdater : [];
+      dispatch({ type: ACTIONS.SET_SEARCH_TAGS, payload: safeTags });
+    }
   };
 
   // Debounce input value for search
@@ -194,14 +205,24 @@ export function PlayerListProvider({ children }) {
       });
     }
     
+    // Ensure searchTags is always an array
+    const searchTagsArray = Array.isArray(state.searchTags) ? state.searchTags : [];
+    
+    if (!Array.isArray(state.searchTags)) {
+      console.error('state.searchTags is not an array in useMemo:', {
+        type: typeof state.searchTags,
+        value: state.searchTags
+      });
+    }
+    
     const currentDebouncedInput = debouncedInput || '';
     const stringTerms = currentDebouncedInput.split(/\s+/).filter(Boolean);
     
     return playersArray.filter(player => {
       // AND logic for tags: player must have all selected tags
-      if (state.searchTags.length > 0) {
+      if (searchTagsArray.length > 0) {
         const playerTagNames = (player.tags || []).map(t => t.name);
-        if (!state.searchTags.every(tag => playerTagNames.includes(tag))) {
+        if (!searchTagsArray.every(tag => playerTagNames.includes(tag))) {
           return false;
         }
       }
@@ -225,7 +246,7 @@ export function PlayerListProvider({ children }) {
     loading: state.loading,
     activeOnly: state.activeOnly,
     scrollOffset: state.scrollOffset,
-    searchTags: state.searchTags,
+    searchTags: Array.isArray(state.searchTags) ? state.searchTags : [],
     inputValue: typeof state.inputValue === 'string' ? state.inputValue : '',
     hasStaleData: state.hasStaleData,
     
