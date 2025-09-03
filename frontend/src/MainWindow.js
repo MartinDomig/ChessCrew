@@ -236,7 +236,7 @@ function MainWindowContent({user}) {
   const handleImportTournamentResults = () => setTournamentImportOpen(true);
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
-  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly} = usePlayerList();
+  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags} = usePlayerList();
   const {tournaments, reloadTournaments} = useTournamentList();
 
   // Initialize navigation stack with player list
@@ -291,12 +291,18 @@ function MainWindowContent({user}) {
     // Clear navigation stack and search state, then start fresh with the new tab's list
     navigation.clear();
     
+    // Reset search state when switching tabs to provide a fresh start
     if (newTab === 0) {
+      // For player tab, reset player search state
+      setActiveOnly(true); // Reset to active only
+      setInputValue(''); // Clear search input
+      setSearchTags([]); // Clear tag filters
       navigation.push({ type: NAV_TYPES.PLAYER_LIST, data: {} });
     } else {
+      // For tournament tab, start fresh
       navigation.push({ type: NAV_TYPES.TOURNAMENT_LIST, data: {} });
     }
-  }, [navigation]);
+  }, [navigation, setActiveOnly, setInputValue, setSearchTags]);
 
   return (
     <Box sx={{
@@ -321,8 +327,16 @@ function MainWindowContent({user}) {
               indicator: { style: { height: 3 } }
             }}
           >
-            <Tab icon={<PeopleIcon />} sx={{ minWidth: 48 }} />
-            <Tab icon={<EmojiEventsIcon />} sx={{ minWidth: 48 }} />
+            <Tab 
+              icon={<PeopleIcon />} 
+              sx={{ minWidth: 48 }} 
+              onClick={() => handleTabChange(null, 0)}
+            />
+            <Tab 
+              icon={<EmojiEventsIcon />} 
+              sx={{ minWidth: 48 }} 
+              onClick={() => handleTabChange(null, 1)}
+            />
           </Tabs>
           <Box sx={{ ml: 'auto' }}>
             <BurgerMenu onLogout={handleLogout} />
