@@ -4,6 +4,7 @@ import CreateAdmin from './CreateAdmin';
 import LoginForm from './LoginForm';
 import MainWindow from './MainWindow';
 import { Box, CircularProgress, CssBaseline } from '@mui/material';
+import './pwa.css';
 
 function App() {
   const [state, setState] = useState(null);
