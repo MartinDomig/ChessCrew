@@ -24,7 +24,7 @@ function TournamentList({tournaments, onTournamentClick}) {
   });
 
   return (
-    <List>
+    <List sx={{ pl: 0, pr: 0 }}>
       {sortedTournaments.map((tournament) => {
       let dateStr = '';
       if (tournament.date) {

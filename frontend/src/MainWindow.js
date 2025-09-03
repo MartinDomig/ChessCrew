@@ -27,6 +27,7 @@ import TournamentDetails from './TournamentDetails';
 import TournamentImportDialog from './TournamentImportDialog';
 import TournamentList from './TournamentList';
 import {TournamentListProvider, useTournamentList} from './TournamentListContext';
+import PlayerListSearchBar from './PlayerListSearchBar';
 
 // Navigation types
 const NAV_TYPES = {
@@ -82,59 +83,73 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
         <Box sx={{
           width: '100%',
           height: '100%',
-          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
           position: 'relative',
         }}>
-          {/* Player-specific actions bar */}
+          {/* Fixed search bar */}
           <Box sx={{
-            display: 'flex',
-            gap: 1,
-            p: 1,
-            position: 'sticky',
-            top: 0,
-            zIndex: 1,
+            flexShrink: 0,
+            px: 1, py: 0.5,
             background: '#fafafa',
             borderBottom: '1px solid #eee',
-            alignItems: 'center'
+            position: 'sticky',
+            top: 0,
+            zIndex: 1
           }}>
-            {isAdmin && (
+            <Box sx={{ mb: 1 }}>
+              <PlayerListSearchBar />
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {isAdmin && (
+                <IconButton
+                  color='primary'
+                  onClick={handleImportClick}
+                  size='small'
+                  title='Import Meldekartei'
+                  sx={{ p: 0.5 }}
+                >
+                  <ImportExportIcon fontSize='small' />
+                </IconButton>
+              )}
               <IconButton
-                color='primary'
-                onClick={handleImportClick}
-                size='small'
-                title='Import Meldekartei'
+                color="primary"
+                onClick={() => exportEmailList(players)}
+                size="small"
+                title="Export E-Mail Liste"
                 sx={{ p: 0.5 }}
               >
-                <ImportExportIcon fontSize='small' />
+                <EmailIcon fontSize="small" />
               </IconButton>
-            )}
-            <IconButton
-              color="primary"
-              onClick={() => exportEmailList(players)}
-              size="small"
-              title="Export E-Mail Liste"
-              sx={{ p: 0.5 }}
-            >
-              <EmailIcon fontSize="small" />
-            </IconButton>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-              <FilterListIcon fontSize="small" color="action" />
-              <Switch
-                edge='end'
-                checked={activeOnly}
-                onChange={(_, checked) => setActiveOnly(checked)}
-                color='primary'
-                size='small'
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+                <FilterListIcon fontSize="small" color="action" />
+                <Switch
+                  edge='end'
+                  checked={activeOnly}
+                  onChange={(_, checked) => setActiveOnly(checked)}
+                  color='primary'
+                  size='small'
+                />
+              </Box>
             </Box>
           </Box>
-          <PlayerList
-            players={players}
-            onPlayerClick={(player) => onNavigate({
-              type: NAV_TYPES.PLAYER_DETAIL,
-              data: { player }
-            })}
-          />
+          
+          {/* Scrollable content area */}
+          <Box sx={{
+            flex: 1,
+            overflowY: 'auto',
+            px: 1,
+            py: 0.5
+          }}>
+            <PlayerList
+              players={players}
+              onPlayerClick={(player) => onNavigate({
+                type: NAV_TYPES.PLAYER_DETAIL,
+                data: { player }
+              })}
+              showSearchBar={false}
+            />
+          </Box>
         </Box>
       );
 
@@ -150,7 +165,7 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
           <Box sx={{
             display: 'flex',
             gap: 1,
-            p: 1,
+            px: 1, py: 0.5,  // Reduced horizontal padding
             position: 'sticky',
             top: 0,
             zIndex: 1,
@@ -336,7 +351,13 @@ function MainWindowContent({user}) {
           <>
             {/* Master panel */}
             <Box sx={{
-              width: 320,
+              width: { 
+                md: 420,  // Increased for tablet landscape
+                lg: 480,  // Increased for small desktops
+                xl: 520   // Increased for large desktops
+              },
+              minWidth: 320,
+              maxWidth: { md: '35%', lg: '40%', xl: '45%' }, // Percentage-based max width
               borderRight: '1px solid #ddd',
               height: '100%',
               overflowY: 'auto'

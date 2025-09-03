@@ -312,7 +312,7 @@ function TournamentDetails({ tournament, onPlayerClick, onDelete, onUpdate }) {
   };
 
   return (
-    <Box sx={{ m: 2, maxWidth: '100%' }}>
+    <Box sx={{ p: 1, maxWidth: '100%' }}>
       <Card sx={{ mb: 2 }}>
         <TournamentHeader
           tournament={localTournament}

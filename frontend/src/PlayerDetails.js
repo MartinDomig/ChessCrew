@@ -110,7 +110,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
   };
 
   return (
-    <Card sx={{ mb: 2, maxWidth: 500, mx: 'auto', position: 'relative' }}>
+    <Card sx={{ mb: 2, position: 'relative' }}>
       <PlayerActiveStar player={player} />
       <CardContent>
         <Typography color="text.secondary">

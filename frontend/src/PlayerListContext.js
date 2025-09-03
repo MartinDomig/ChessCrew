@@ -97,6 +97,37 @@ export function PlayerListProvider({ children }) {
     }
   };
 
+  // Debounce input value for search
+  const [debouncedInput, setDebouncedInput] = React.useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedInput(state.inputValue || '');
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [state.inputValue]);
+
+  // Filtering logic
+  const filteredPlayers = React.useMemo(() => {
+    const currentDebouncedInput = debouncedInput || '';
+    const stringTerms = currentDebouncedInput.split(/\s+/).filter(Boolean);
+    
+    return state.players.filter(player => {
+      // AND logic for tags: player must have all selected tags
+      if (state.searchTags.length > 0) {
+        const playerTagNames = (player.tags || []).map(t => t.name);
+        if (!state.searchTags.every(tag => playerTagNames.includes(tag))) {
+          return false;
+        }
+      }
+      // OR logic for string search
+      const name = `${player.first_name} ${player.last_name}`.toLowerCase();
+      const kat = (player.kat || "").toLowerCase();
+      const pnr = String(player.p_number);
+      return stringTerms.length === 0 || stringTerms.some(term => name.includes(term.toLowerCase()) || kat.includes(term.toLowerCase()) || pnr.startsWith(term.toLowerCase()));
+    });
+  }, [state.players, state.searchTags, debouncedInput]);
+
   useEffect(() => {
     reloadPlayers();
     // eslint-disable-next-line
@@ -105,6 +136,7 @@ export function PlayerListProvider({ children }) {
   const value = {
     // State
     players: state.players,
+    filteredPlayers,
     loading: state.loading,
     activeOnly: state.activeOnly,
     scrollOffset: state.scrollOffset,
