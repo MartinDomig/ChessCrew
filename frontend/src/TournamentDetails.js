@@ -3,10 +3,12 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
+import Checkbox from '@mui/material/Checkbox';
 import CircularProgress from '@mui/material/CircularProgress';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import SaveIcon from '@mui/icons-material/Save';
 import TextField from '@mui/material/TextField';
@@ -61,7 +63,8 @@ function useEditMode(tournament) {
       setEditedTournament({
         name: tournament.name || '',
         date: formatDateForInput(tournament.date),
-        location: tournament.location || ''
+        location: tournament.location || '',
+        is_team: tournament.is_team || false
       });
     }
   }, [tournament]);
@@ -77,7 +80,8 @@ function useEditMode(tournament) {
     setEditedTournament({
       name: tournament.name || '',
       date: formatDateForInput(tournament.date),
-      location: tournament.location || ''
+      location: tournament.location || '',
+      is_team: tournament.is_team || false
     });
   };
 
@@ -187,6 +191,17 @@ function TournamentDetailsForm({ tournament, isEditing, editedTournament, onFiel
             size="small"
             sx={{ mb: 2 }}
           />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={editedTournament.is_team}
+                onChange={(e) => onFieldChange('is_team', e.target.checked)}
+                color="primary"
+              />
+            }
+            label="Mannschaftsturnier"
+            sx={{ mb: 2 }}
+          />
           <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'space-between' }}>
             <Button
               variant="contained"
@@ -212,6 +227,7 @@ function TournamentDetailsForm({ tournament, isEditing, editedTournament, onFiel
           <Typography variant="subtitle1">Datum: {formatDisplayDate(tournament.date)}</Typography>
           <Typography variant="body2">Ort: {tournament.location}</Typography>
           <Typography variant="body2">Teilnehmer: {participantCount}</Typography>
+          <Typography variant="body2">Typ: {tournament.is_team ? 'Mannschaftsturnier' : 'Einzelturnier'}</Typography>
         </>
       )}
     </CardContent>
