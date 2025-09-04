@@ -496,14 +496,33 @@ def import_tournaments_xlsx():
         if not header:
             raise ValueError("No valid header found")
 
-        # Create tournament
+        # Parse players first to check if any can be mapped
+        result_format = detect_result_format(df, header, header_row_idx)
+        print(f"Detected result format: {result_format}")
+
+        # Check if any players can be mapped before creating tournament
+        mapped_players_count = 0
+        for i in range(header_row_idx + 1, len(df)):
+            row = [str(v).strip() for v in df.iloc[i]]
+            if not row:
+                break
+            data = dict(zip(header, [str(v).strip() for v in row]))
+            if not data.get('Name', '') or data.get('Name', '') == "nan":
+                break
+            name = data.get('Name', '').strip()
+            player = find_existing_player(name)
+            if player:
+                mapped_players_count += 1
+                break  # We only need to find one mapped player
+
+        if mapped_players_count == 0:
+            return jsonify({'error': 'No players from this tournament could be mapped to existing players. Tournament import cancelled.'}), 400
+
+        # Create tournament only if at least one player can be mapped
         print("Creating tournament:", tournament_name)
         tournament = Tournament(name=tournament_name, checksum=checksum, date=date, location=location)
         db.session.add(tournament)
         db.session.flush()
-
-        result_format = detect_result_format(df, header, header_row_idx)
-        print(f"Detected result format: {result_format}")
 
         ranked_players, round_columns, rank_dict = parse_players(df, header, header_row_idx, tournament, find_existing_player, result_format)
 
