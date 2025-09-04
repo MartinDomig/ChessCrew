@@ -119,10 +119,19 @@ export function PlayerListProvider({ children }) {
         setTimeout(() => {
           // Only preload if we don't already have cached data for the opposite filter
           getCacheInfo().then(cacheInfo => {
-            const oppositeEndpoint = state.activeOnly ? '/players' : '/players?active=true';
-            const hasOppositeCache = cacheInfo.entries.some(entry => 
-              entry.url.includes(oppositeEndpoint) && entry.status === 'valid'
-            );
+            let hasOppositeCache = false;
+            
+            if (state.activeOnly) {
+              // If currently showing active only, check if we have the full list cached
+              hasOppositeCache = cacheInfo.entries.some(entry => 
+                entry.url.includes('/players') && !entry.url.includes('active=true') && entry.status === 'valid'
+              );
+            } else {
+              // If currently showing all, check if we have the active-only list cached
+              hasOppositeCache = cacheInfo.entries.some(entry => 
+                entry.url.includes('/players?active=true') && entry.status === 'valid'
+              );
+            }
             
             if (!hasOppositeCache) {
               console.log('Starting background preload for opposite filter');

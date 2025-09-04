@@ -151,6 +151,8 @@ export async function apiFetch(endpoint, options = {}) {
   let headers = { ...(options.headers || {}) };
   let body = options.body;
   
+  console.log(`API Fetch: ${method} ${endpoint}`);
+
   // Check if we're offline and trying to make a write request
   if (!isOnline() && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     throw new Error('Cannot perform write operations while offline. Please check your internet connection.');
@@ -362,7 +364,7 @@ export const preloadCommonData = async (currentFilter = null) => {
     return;
   }
 
-  console.log('Starting background preload of common data...');
+  console.log('Starting background preload of common data: current filter =', currentFilter);
   
   // Only preload full players list if we're currently showing active-only players
   // This avoids loading both lists at startup when user wants full list
