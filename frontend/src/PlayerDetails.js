@@ -315,6 +315,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
                 const locationAndDate = [tournament.location, dateStr].filter(Boolean).join(' • ');
                 
                 const resultText = [
+                  tournament.rank && tournament.total_players ? `Rang ${tournament.rank}/${tournament.total_players}` : 
                   tournament.rank ? `Rang ${tournament.rank}` : null,
                   tournament.points !== null && tournament.games_played !== undefined ? `${tournament.points}/${tournament.games_played}` : null
                 ].filter(Boolean).join(' • ');

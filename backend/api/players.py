@@ -433,7 +433,8 @@ def get_player_tournaments(player_id):
             'points': tp.points,
             'tiebreak1': tp.tiebreak1,
             'tiebreak2': tp.tiebreak2,
-            'games_played': len([g for g in tournament.games if g.player_id == tp.id])
+            'games_played': len([g for g in tournament.games if g.player_id == tp.id]),
+            'total_players': len(tournament.tournament_players)
         }
         for tp, tournament in tournament_players
     ])
