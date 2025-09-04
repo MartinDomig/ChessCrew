@@ -101,38 +101,63 @@ def list_players():
     """
     active = request.args.get('active')
     query = Player.query
+    
+    # Filter by active status if specified
     if active is not None:
         if active.lower() == 'true':
             query = query.filter_by(is_active=True)
         elif active.lower() == 'false':
             query = query.filter_by(is_active=False)
-    players = query.order_by(Player.last_name.asc()).all()
     
-    # Calculate tournament stats for each player
-    player_stats = {}
-    player_tournaments = {}
-    for player in players:
-        player_stats[player.id] = calculate_player_tournament_stats(player.id)
+    # Eager load related data to avoid N+1 queries
+    players = query.options(
+        db.selectinload(Player.tags),
+        db.selectinload(Player.notes),
+        db.selectinload(Player.tournament_players).selectinload(TournamentPlayer.tournament)
+    ).order_by(Player.last_name.asc()).all()
+    
+    # Calculate tournament stats in batch to avoid N+1 queries
+    cutoff_date = datetime.now().date() - timedelta(days=360)
+    
+    # Get all tournament players for active players in one query
+    player_ids = [p.id for p in players]
+    if player_ids:
+        tournament_stats_query = db.session.query(
+            TournamentPlayer.player_id,
+            db.func.sum(db.func.coalesce(TournamentPlayer.points, 0)).label('total_points'),
+            db.func.count(Game.id).label('total_games')
+        ).outerjoin(
+            Tournament, TournamentPlayer.tournament_id == Tournament.id
+        ).outerjoin(
+            Game, db.and_(
+                Game.tournament_id == Tournament.id,
+                Game.player_id == TournamentPlayer.id
+            )
+        ).filter(
+            TournamentPlayer.player_id.in_(player_ids),
+            Tournament.date >= cutoff_date
+        ).group_by(TournamentPlayer.player_id).all()
         
-        # Get tournament data for each player
-        tournament_players = db.session.query(TournamentPlayer, Tournament)\
-            .join(Tournament, TournamentPlayer.tournament_id == Tournament.id)\
-            .filter(TournamentPlayer.player_id == player.id)\
-            .order_by(Tournament.date.desc())\
-            .all()
-        
-        player_tournaments[player.id] = [
-            format_tournament_data(tp, tournament)
-            for tp, tournament in tournament_players
-        ]
+        # Convert to dict for easy lookup
+        tournament_stats = {stat.player_id: {
+            'total_points': stat.total_points or 0,
+            'total_games': stat.total_games or 0
+        } for stat in tournament_stats_query}
+    else:
+        tournament_stats = {}
     
     return jsonify([
         {
             **p.to_dict(),
             'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in p.tags],
             'notes': [format_note(note) for note in p.notes],
-            'tournaments': player_tournaments.get(p.id, []),
-            'tournament_stats': player_stats.get(p.id, {'total_points': 0, 'total_games': 0})
+            'tournaments': [
+                format_tournament_data(tp, tp.tournament)
+                for tp in sorted(p.tournament_players, 
+                               key=lambda tp: tp.tournament.date if tp.tournament else datetime.min.date(), 
+                               reverse=True)
+            ],
+            'tournament_stats': tournament_stats.get(p.id, {'total_points': 0, 'total_games': 0})
         }
         for p in players
     ])
@@ -156,30 +181,48 @@ def create_player():
 @players_bp.route('/players/<int:player_id>', methods=['GET'])
 @login_required
 def get_player(player_id):
-    player = Player.query.get(player_id)
+    # Use eager loading to avoid N+1 queries
+    player = Player.query.options(
+        db.selectinload(Player.tags),
+        db.selectinload(Player.notes),
+        db.selectinload(Player.tournament_players).selectinload(TournamentPlayer.tournament)
+    ).get(player_id)
+    
     if not player:
         return jsonify({'error': 'Player not found'}), 404
     
-    # Calculate tournament stats for this player
-    tournament_stats = calculate_player_tournament_stats(player_id)
+    # Calculate tournament stats using optimized batch query
+    cutoff_date = datetime.now().date() - timedelta(days=360)
+    tournament_stats_query = db.session.query(
+        db.func.sum(db.func.coalesce(TournamentPlayer.points, 0)).label('total_points'),
+        db.func.count(Game.id).label('total_games')
+    ).outerjoin(
+        Tournament, TournamentPlayer.tournament_id == Tournament.id
+    ).outerjoin(
+        Game, db.and_(
+            Game.tournament_id == Tournament.id,
+            Game.player_id == TournamentPlayer.id
+        )
+    ).filter(
+        TournamentPlayer.player_id == player_id,
+        Tournament.date >= cutoff_date
+    ).first()
     
-    # Get tournament data for this player
-    tournament_players = db.session.query(TournamentPlayer, Tournament)\
-        .join(Tournament, TournamentPlayer.tournament_id == Tournament.id)\
-        .filter(TournamentPlayer.player_id == player_id)\
-        .order_by(Tournament.date.desc())\
-        .all()
-    
-    tournaments = [
-        format_tournament_data(tp, tournament)
-        for tp, tournament in tournament_players
-    ]
+    tournament_stats = {
+        'total_points': tournament_stats_query.total_points or 0,
+        'total_games': tournament_stats_query.total_games or 0
+    }
     
     return jsonify({
         **player.to_dict(),
         'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags],
         'notes': [format_note(note) for note in player.notes],
-        'tournaments': tournaments,
+        'tournaments': [
+            format_tournament_data(tp, tp.tournament)
+            for tp in sorted(player.tournament_players, 
+                           key=lambda tp: tp.tournament.date if tp.tournament else datetime.min.date(), 
+                           reverse=True)
+        ],
         'tournament_stats': tournament_stats
     })
 
@@ -207,8 +250,27 @@ def update_player(player_id):
 
     db.session.commit()
     
-    # Calculate tournament stats for the updated player
-    tournament_stats = calculate_player_tournament_stats(player_id)
+    # Calculate tournament stats using optimized query
+    cutoff_date = datetime.now().date() - timedelta(days=360)
+    tournament_stats_query = db.session.query(
+        db.func.sum(db.func.coalesce(TournamentPlayer.points, 0)).label('total_points'),
+        db.func.count(Game.id).label('total_games')
+    ).outerjoin(
+        Tournament, TournamentPlayer.tournament_id == Tournament.id
+    ).outerjoin(
+        Game, db.and_(
+            Game.tournament_id == Tournament.id,
+            Game.player_id == TournamentPlayer.id
+        )
+    ).filter(
+        TournamentPlayer.player_id == player_id,
+        Tournament.date >= cutoff_date
+    ).first()
+    
+    tournament_stats = {
+        'total_points': tournament_stats_query.total_points or 0,
+        'total_games': tournament_stats_query.total_games or 0
+    }
     
     return jsonify({
         **player.to_dict(),

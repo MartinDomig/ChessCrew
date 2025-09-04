@@ -25,6 +25,13 @@ def create_app():
     db_path = os.path.join(db_dir, 'chesscrew.sqlite3')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Database connection pool configuration
+    app.config['SQLALCHEMY_POOL_SIZE'] = 10
+    app.config['SQLALCHEMY_POOL_TIMEOUT'] = 30
+    app.config['SQLALCHEMY_POOL_RECYCLE'] = 3600
+    app.config['SQLALCHEMY_MAX_OVERFLOW'] = 20
+    
     # Set session cookie for cross-origin credentials
     app.config['SESSION_COOKIE_SAMESITE'] = 'None'
     app.config['SESSION_COOKIE_SECURE'] = True
