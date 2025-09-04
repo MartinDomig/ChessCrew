@@ -36,8 +36,17 @@ function useTournamentData(tournamentId) {
           apiFetch(`/tournaments/${tournamentId}/players`),
           apiFetch(`/tournaments/${tournamentId}/games`)
         ]);
-        setPlayers(playersData || []);
-        setGames(gamesData || []);
+        
+        // Ensure data is in correct format (handle potential cache issues)
+        const playersArray = Array.isArray(playersData) ? playersData : 
+                           (playersData && typeof playersData === 'object' && Object.keys(playersData).every(key => /^\d+$/.test(key))) ?
+                           Object.values(playersData) : [];
+        const gamesArray = Array.isArray(gamesData) ? gamesData : 
+                          (gamesData && typeof gamesData === 'object' && Object.keys(gamesData).every(key => /^\d+$/.test(key))) ?
+                          Object.values(gamesData) : [];
+        
+        setPlayers(playersArray);
+        setGames(gamesArray);
       } catch (err) {
         setError('Fehler beim Laden der Turnierdaten');
         console.error('Error fetching tournament data:', err);

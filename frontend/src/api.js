@@ -6,6 +6,9 @@ const CACHE_NAME = 'chesscrew-api-cache-v1';
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes in milliseconds
 const OFFLINE_CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours for offline mode
 
+// Flag to ensure cache is cleared only once per session
+let cacheCleared = false;
+
 // Helper function to check if we're online
 const isOnline = () => navigator.onLine;
 
@@ -39,7 +42,20 @@ const getCachedData = async (cacheKey) => {
         // Check if cache is still valid (different expiry times for online/offline)
         if (age < effectiveExpiry) {
           // Remove cache metadata before returning
-          const { _cacheTimestamp, ...data } = cachedData;
+          const { _cacheTimestamp, _isArray, _arrayData, ...data } = cachedData;
+          
+          // Handle arrays that were stored specially
+          if (_isArray && _arrayData) {
+            console.log('Reconstructed array from cached data:', _arrayData.length);
+            
+            // Add metadata to indicate if data is stale (expired by online standards but valid offline)
+            if (!isOnline() && age > CACHE_EXPIRY) {
+              _arrayData._isStale = true;
+              _arrayData._cacheAge = age;
+            }
+            
+            return _arrayData;
+          }
           
           // Check if data is an array-like object (has numeric keys) and convert it back to array
           if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -59,6 +75,14 @@ const getCachedData = async (cacheKey) => {
               }
               
               return reconstructedArray;
+            } else {
+              // This is old cached data in object format - clear this specific cache entry
+              console.log('Detected old cache format for', cacheKey, '- deleting entry');
+              const cache = await caches.open(CACHE_NAME);
+              const cacheUrl = `https://api-cache.local/${cacheKey}`;
+              await cache.delete(cacheUrl);
+              console.log('Deleted old cache entry:', cacheKey);
+              return null; // Return null to force fresh fetch
             }
           }
           
@@ -95,11 +119,22 @@ const cacheData = async (cacheKey, data) => {
   try {
     const cache = await caches.open(CACHE_NAME);
     
-    // Add timestamp to cached data
-    const dataWithTimestamp = {
-      ...data,
-      _cacheTimestamp: Date.now()
-    };
+    // Handle arrays specially to preserve their structure
+    let dataWithTimestamp;
+    if (Array.isArray(data)) {
+      // For arrays, store them as an object with a special marker
+      dataWithTimestamp = {
+        _isArray: true,
+        _arrayData: data,
+        _cacheTimestamp: Date.now()
+      };
+    } else {
+      // For objects, use spread as before
+      dataWithTimestamp = {
+        ...data,
+        _cacheTimestamp: Date.now()
+      };
+    }
     
     // Create a proper URL for the cache key
     const cacheUrl = `https://api-cache.local/${cacheKey}`;
@@ -152,6 +187,14 @@ export async function apiFetch(endpoint, options = {}) {
   let body = options.body;
   
   console.log(`API Fetch: ${method} ${endpoint}`);
+
+  // Clear old cache format once per session to fix array caching issue
+  if (!cacheCleared) {
+    console.log('Clearing old cache format to fix array handling...');
+    await clearApiCache();
+    cacheCleared = true;
+    console.log('Old cache cleared successfully');
+  }
 
   // Check if we're offline and trying to make a write request
   if (!isOnline() && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {

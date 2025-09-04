@@ -33,15 +33,23 @@ function willMoveUp(player) {
   return ageThisYear === maxAge;
 }
 
-export default function CategoryChip({ player, onClick }) {
+export default function CategoryChip({ player, onClick, size = 'small' }) {
   if (!player?.kat) return null;
 
-    return (
-      <Chip
-        label={player.kat + (willMoveUp(player) ? " >" : "")}
-        color={player.female ? "secondary" : "primary"}
-        size="small"
-        onClick={onClick ? (e => { e.preventDefault(); e.stopPropagation(); onClick(player.kat); }) : undefined}
-      />
-    );
+  // Custom styling for "tiny" size
+  const tinySx = size === 'tiny' ? {
+    height: 18,
+    fontSize: '0.65rem',
+    padding: '2px 6px'
+  } : {};
+
+  return (
+    <Chip
+      label={player.kat + (willMoveUp(player) ? " >" : "")}
+      color={player.female ? "secondary" : "primary"}
+      size={size === 'tiny' ? 'small' : size}  // Use 'small' for tiny, pass through others
+      sx={tinySx}
+      onClick={onClick ? (e => { e.preventDefault(); e.stopPropagation(); onClick(player.kat); }) : undefined}
+    />
+  );
 }

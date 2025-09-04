@@ -10,6 +10,8 @@ import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 
+import CategoryChip from './CategoryChip';
+
 const sortPlayersByRank = (players) => {
   return [...players].sort((a, b) => {
     if (a.rank && b.rank) return a.rank - b.rank;
@@ -60,7 +62,12 @@ function PlayerRow({ player, index, onPlayerClick }) {
           '&:hover': isClickable ? { textDecoration: 'underline' } : {}
         }}
       >
-        {displayName}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>{displayName}</span>
+          {player.player && (
+            <CategoryChip player={player.player} size="small" />
+          )}
+        </div>
       </TableCell>
       <TableCell align="right">{player.points !== null ? player.points : '-'}</TableCell>
       <TableCell align="right">{tieDisplay}</TableCell>
