@@ -205,6 +205,20 @@ export async function apiFetch(endpoint, options = {}) {
   try {
     const res = await fetch(`${API_URL}${endpoint}`, opts);
     
+    // Handle 403 Forbidden - user is not authenticated
+    if (res.status === 403) {
+      console.log('Received 403 Forbidden - clearing cache and marking as logged out');
+      // Clear API cache when we get 403
+      await clearApiCache();
+      // Dispatch custom event to notify app of authentication error
+      window.dispatchEvent(new CustomEvent('auth-error', { detail: { status: 403 } }));
+      // Throw a specific error for 403
+      const error = new Error('Authentication required');
+      error.status = 403;
+      error.isAuthError = true;
+      throw error;
+    }
+    
     if (!res.ok) {
       let errorMessage = 'Network response was not ok';
       try {
@@ -255,6 +269,13 @@ const fetchAndUpdateCache = async (endpoint, options, cacheKey) => {
     const opts = { ...options, headers, credentials: 'include' };
     
     const res = await fetch(`${API_URL}${endpoint}`, opts);
+    
+    // Handle 403 in background updates too
+    if (res.status === 403) {
+      console.log('Received 403 in background update - dispatching auth error');
+      window.dispatchEvent(new CustomEvent('auth-error', { detail: { status: 403 } }));
+      return;
+    }
     
     if (res.ok && res.status !== 204) {
       const data = await res.json();

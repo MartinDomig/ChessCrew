@@ -1,5 +1,5 @@
 // Cache version - update this when deploying new code
-const CACHE_VERSION = 'v1756930597138';
+const CACHE_VERSION = 'v1757009524473';
 const CACHE_NAME = 'chesscrew-' + CACHE_VERSION;
 const API_CACHE_NAME = 'chesscrew-api-cache-' + CACHE_VERSION;
 const STATIC_ASSETS = [
@@ -88,27 +88,49 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
 
-        // For API requests, try the API cache
+        // For API requests, use network-first strategy except for players and tournaments
         if (isApiRequest) {
-          return caches.open(API_CACHE_NAME).then(apiCache => {
-            return apiCache.match(event.request).then(apiResponse => {
-              if (apiResponse) {
-                console.log('Serving API from cache:', event.request.url);
-                return apiResponse;
+          const isPlayersOrTournaments = url.pathname.includes('/api/players') || url.pathname.includes('/api/tournaments');
+          
+          if (!isPlayersOrTournaments) {
+            // Network-first for other API requests
+            return fetch(event.request).then((networkResponse) => {
+              // Don't cache non-200 responses (including 403)
+              if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+                return networkResponse;
               }
 
-              // If not in cache, fetch from network and cache if successful
-              return fetch(event.request).then((response) => {
-                if (!response || response.status !== 200 || response.type !== 'basic') {
-                  return response;
+              const responseToCache = networkResponse.clone();
+              caches.open(API_CACHE_NAME)
+                .then((cache) => {
+                  cache.put(event.request, responseToCache);
+                });
+
+              return networkResponse;
+            });
+          } else {
+            // Cache-first for players and tournaments
+            return caches.open(API_CACHE_NAME).then(apiCache => {
+              return apiCache.match(event.request).then(apiResponse => {
+                if (apiResponse) {
+                  console.log('Serving API from cache:', event.request.url);
+                  return apiResponse;
                 }
 
-                const responseToCache = response.clone();
-                apiCache.put(event.request, responseToCache);
-                return response;
+                // If not in cache, fetch from network and cache if successful
+                return fetch(event.request).then((response) => {
+                  // Don't cache non-200 responses (including 403)
+                  if (!response || response.status !== 200 || response.type !== 'basic') {
+                    return response;
+                  }
+
+                  const responseToCache = response.clone();
+                  apiCache.put(event.request, responseToCache);
+                  return response;
+                });
               });
             });
-          });
+          }
         }
 
         // Otherwise, fetch from network for non-API requests

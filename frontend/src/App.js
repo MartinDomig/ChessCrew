@@ -41,6 +41,18 @@ function App() {
     }
   }, [state]);
 
+  // Listen for authentication errors
+  useEffect(() => {
+    const handleAuthError = () => {
+      console.log('Authentication error detected, logging out');
+      setLoggedIn(false);
+      setUser(null);
+    };
+
+    window.addEventListener('auth-error', handleAuthError);
+    return () => window.removeEventListener('auth-error', handleAuthError);
+  }, []);
+
   const handleAdminCreated = () => {
     setState({ ...state, needs_admin: false });
   };

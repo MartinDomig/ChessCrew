@@ -17,7 +17,7 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import React, {useState, useCallback, useEffect} from 'react';
 
-import {apiFetch} from './api';
+import {apiFetch, clearApiCache} from './api';
 import BurgerMenu from './BurgerMenu';
 import {exportEmailList} from './csvUtils';
 import InstallPWA from './InstallPWA';
@@ -291,6 +291,8 @@ function MainWindowContent({user}) {
   const handleLogout = async () => {
     try {
       await apiFetch('/logout', {method: 'POST'});
+      // Clear cache on logout
+      await clearApiCache();
       window.location.reload();
     } catch (err) {
       // Optionally show an error message
