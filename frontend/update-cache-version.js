@@ -53,21 +53,25 @@ try {
   const currentVersionMatch = swContent.match(/const CACHE_VERSION = '([^']+)';/);
   const currentVersion = currentVersionMatch ? currentVersionMatch[1] : null;
 
-  if (currentVersion === newVersion) {
-    console.log(`ℹ️  Cache version is already up to date: ${newVersion}`);
+  // Create version with build timestamp
+  const buildTime = new Date().toISOString();
+  const versionWithTime = `${newVersion} (${buildTime})`;
+
+  if (currentVersion === versionWithTime) {
+    console.log(`ℹ️  Cache version is already up to date: ${versionWithTime}`);
     return;
   }
 
   // Replace the cache version
   swContent = swContent.replace(
     /const CACHE_VERSION = '[^']+';/,
-    `const CACHE_VERSION = '${newVersion}';`
+    `const CACHE_VERSION = '${versionWithTime}';`
   );
 
   // Write back to file
   fs.writeFileSync(swPath, 'utf8');
 
-  console.log(`✅ Updated cache version to: ${newVersion}`);
+  console.log(`✅ Updated cache version to: ${versionWithTime}`);
 
 } catch (error) {
   console.error('❌ Failed to update cache version:', error.message);

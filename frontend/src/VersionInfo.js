@@ -19,11 +19,30 @@ export const VersionInfo = forwardRef(({ compact = false }, ref) => {
                 const cacheVersion = versionMatch[1];
                 setVersion(cacheVersion);
                 
-                // Extract timestamp from version (format: vXXXXXXXXXXXXX)
-                const timestamp = cacheVersion.replace('v', '');
-                if (timestamp && !isNaN(timestamp)) {
-                  const buildDate = new Date(parseInt(timestamp));
-                  setBuildTime(buildDate.toLocaleString('de-DE'));
+                // Parse version with build time: "v1.0.0-8-g47243d9 (2025-09-04T22:30:00.000Z)"
+                const timeMatch = cacheVersion.match(/(.+?)\s*\(([^)]+)\)/);
+                if (timeMatch) {
+                  const gitVersion = timeMatch[1].trim();
+                  const buildTimestamp = timeMatch[2].trim();
+                  
+                  // Format the build time nicely using browser locale
+                  try {
+                    const buildDate = new Date(buildTimestamp);
+                    const userLocale = navigator.language || navigator.languages?.[0] || 'en-US';
+                    const formattedTime = buildDate.toLocaleString(userLocale, {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                    setBuildTime(`${gitVersion} (${formattedTime})`);
+                  } catch (e) {
+                    setBuildTime(gitVersion);
+                  }
+                } else {
+                  // Fallback for old format without timestamp
+                  setBuildTime(cacheVersion);
                 }
               }
             })
