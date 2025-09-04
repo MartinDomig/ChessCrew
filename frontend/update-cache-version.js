@@ -69,7 +69,7 @@ try {
   );
 
   // Write back to file
-  fs.writeFileSync(swPath, 'utf8');
+  fs.writeFileSync(swPath, swContent, 'utf8');
 
   console.log(`✅ Updated cache version to: ${versionWithTime}`);
 
