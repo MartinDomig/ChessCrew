@@ -283,27 +283,34 @@ def find_header_row(df):
             return idx
     raise ValueError("Header row not found")
 
-def detect_round_columns(header):
-    round_columns = []
-    for col in header:
-        if '1' in col:
-            round_columns.append(col)
-            break
-    if not round_columns:
-        raise ValueError("No column found for first round")
+def detect_result_format(df, header, header_row_idx):
+    # Check for "Kapitän:" marker which indicates team tournaments
+    for i in range(header_row_idx):
+        row = [str(v).strip() for v in df.iloc[i]]
+        if row and row[0].startswith('Kapitän:'):
+            return 'team'
 
-    first_round_column = round_columns[0]
-    i = 2
-    while True:
-        next_round_column = first_round_column.replace('1', str(i))
-        if next_round_column in header:
-            round_columns.append(next_round_column)
-            i += 1
-        else:
+    round_columns = detect_round_columns(header)
+    for i in range(header_row_idx + 1, len(df)):
+        row = [str(v).strip() for v in df.iloc[i]]
+        if not row:
             break
-    return round_columns
+        data = dict(zip(header, [str(v).strip() for v in row]))
+        if not data.get('Name', '') or data.get('Name', '') == "nan":
+            break
 
-def parse_players(df, header, header_row_idx, tournament, find_existing_player):
+        for r in round_columns:
+            round_result = data.get(r)
+            if round_result in ['*', '***']:
+                continue
+            if re.match(r'^\d+ \d+$', round_result):
+                return 'pair'
+            if re.match(r'^\d+[wsb][10½+]$', round_result):
+                return 'complex'
+
+    return 'simple'
+
+def parse_players(df, header, header_row_idx, tournament, find_existing_player, result_format):
     # first column after rounds contains wtg1
     round_columns = detect_round_columns(header)
     wtg1_column = header[header.index(round_columns[-1]) + 1] if round_columns else None
@@ -349,22 +356,13 @@ def parse_players(df, header, header_row_idx, tournament, find_existing_player):
         ranked_players.append(tp)
         db.session.add(tp)
 
-        if result_format is None:
-            for r in round_columns:
-                round_result = data.get(r)
-                if re.match(r'^\d+[wsb][10½+]$', round_result):
-                    result_format = 'complex'
-                    break
-            if result_format is None:
-                result_format = 'simple'
-            print("Detected result format:", result_format)
-
     if not ranked_players:
         raise ValueError('No valid player data found')
 
-    return ranked_players, result_format, round_columns
+    rank_dict = {tp.rank: tp for tp in ranked_players}
+    return ranked_players, round_columns, rank_dict
 
-def parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format):
+def parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format, rank_dict):
     imported_games = 0
     rank = 0
     for i in range(header_row_idx + 1, len(df)):
@@ -390,9 +388,42 @@ def parse_games(df, header, header_row_idx, round_columns, ranked_players, tourn
             result = None
 
             if result_format == 'simple':
-                opponent = ranked_players[int(r)]
+                if round_result in ['*', '***', '+']:
+                    continue
+                round_num = r + 1
+                opponent_rank = round_num
+                if opponent_rank not in rank_dict or opponent_rank == player.rank:
+                    continue
+                opponent = rank_dict[opponent_rank]
                 result = round_result
+            elif result_format == 'team':
+                if round_result in ['*', '***', '+'] or round_result not in ['1', '0', '½']:
+                    continue
+                # For team, no opponent, just record result but don't create Game
+                continue
+            elif result_format == 'pair':
+                if round_result == '+':
+                    continue
+                parts = round_result.split()
+                if len(parts) != 2:
+                    print(f"DEBUG: Invalid pair format {round_result} for {player.name}")
+                    continue
+                try:
+                    opponent_nr = int(parts[0])
+                    result = parts[1]
+                except ValueError:
+                    print(f"DEBUG: Invalid numbers in {round_result} for {player.name}")
+                    continue
+                if opponent_nr < 1 or opponent_nr > len(ranked_players):
+                    print(f"DEBUG: Opponent number {opponent_nr} out of range for {player.name}")
+                    continue
+                opponent = ranked_players[opponent_nr - 1]
+                if opponent == player:
+                    print(f"DEBUG: Self opponent for {player.name}")
+                    continue
             else:
+                if round_result == '+':
+                    continue
                 m = re.match(r'^(\d+)([wsb])([10½+])$', round_result)
                 if not m:
                     print(f'Invalid round result, assuming skip: {round_result} for {player.name}')
@@ -406,10 +437,12 @@ def parse_games(df, header, header_row_idx, round_columns, ranked_players, tourn
                 elif color in ['s', 'b']:
                     player_color = 'black'
 
-            if not opponent:
-                raise ValueError(f'Invalid opponent: {round_result} for {player.name}')
-            if player.id == opponent.id:
-                raise ValueError(f'Player cannot play against themselves: {player.name}')
+            if result_format != 'team':
+                if not opponent:
+                    raise ValueError(f'Invalid opponent: {round_result} for {player.name}')
+                if opponent and player.id == opponent.id:
+                    raise ValueError(f'Player cannot play against themselves: {player.name}')
+            
             if not result:
                 raise ValueError(f'Invalid round result: {round_result} for {player.name}')
 
@@ -417,7 +450,7 @@ def parse_games(df, header, header_row_idx, round_columns, ranked_players, tourn
                 tournament_id=tournament.id,
                 player_id=player.id,
                 player_color=player_color,
-                opponent_id=opponent.id,
+                opponent_id=opponent.id if opponent else None,
                 round_number=r + 1,
                 result=result
             )
@@ -425,8 +458,6 @@ def parse_games(df, header, header_row_idx, round_columns, ranked_players, tourn
             imported_games += 1
 
     return imported_games
-
-@tournaments_bp.route('/tournaments-import-xlsx', methods=['POST'])
 @admin_required
 def import_tournaments_xlsx():
     if 'file' not in request.files:
@@ -469,9 +500,12 @@ def import_tournaments_xlsx():
         db.session.add(tournament)
         db.session.flush()
 
-        ranked_players, result_format, round_columns = parse_players(df, header, header_row_idx, tournament, find_existing_player)
+        result_format = detect_result_format(df, header, header_row_idx)
+        print(f"Detected result format: {result_format}")
 
-        if result_format is 'team':
+        ranked_players, round_columns, rank_dict = parse_players(df, header, header_row_idx, tournament, find_existing_player, result_format)
+
+        if result_format == 'team':
             tournament.is_team = True
             db.session.add(tournament)
         
@@ -479,7 +513,7 @@ def import_tournaments_xlsx():
         for p in ranked_players:
             print("Ranked Player: {} - {} (ID: {})".format(p.rank, p.name, p.player_id))
 
-        imported_games = parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format)
+        imported_games = parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format, rank_dict)
 
         db.session.commit()
 
