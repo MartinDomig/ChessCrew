@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import session, abort
-from backend.db.models import User
+from db.models import User
 
 def admin_required(f):
     @wraps(f)

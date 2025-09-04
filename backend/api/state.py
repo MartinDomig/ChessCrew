@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from ..db.models import User
+from db.models import User
 
 state_bp = Blueprint('state', __name__)
 

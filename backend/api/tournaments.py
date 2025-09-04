@@ -6,7 +6,7 @@ import os
 import tempfile
 import pandas as pd
 from flask import Blueprint, request, jsonify, abort, session
-from backend.db.models import db, Player, Note, Tournament, TournamentPlayer, Game
+from db.models import db, Player, Note, Tournament, TournamentPlayer, Game
 from datetime import datetime, date
 from .auth import login_required, admin_required
 

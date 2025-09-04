@@ -4,7 +4,7 @@ import os
 import tempfile
 import subprocess
 from flask import Flask, Blueprint, jsonify, request, current_app, session, abort, Response
-from backend.db.models import db, Player, User, Tag, Note
+from db.models import db, Player, User, Tag, Note
 from .state import state_bp
 from .players import players_bp
 from .tournaments import tournaments_bp

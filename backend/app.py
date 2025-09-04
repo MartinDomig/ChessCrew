@@ -1,9 +1,9 @@
 import os
 from flask import Flask, render_template
-from backend.api.endpoints import register_blueprints
-from backend.db.models import db
+from api.endpoints import register_blueprints
+from db.models import db
 from sqlalchemy import text, inspect, Boolean, Integer, String, Date, Float, Text
-from backend.db.models import Player, Tournament, TournamentPlayer, Game, User, Note, Tag
+from db.models import Player, Tournament, TournamentPlayer, Game, User, Note, Tag
 
 def create_app():
     app = Flask(__name__)

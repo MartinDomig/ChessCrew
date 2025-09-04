@@ -1,7 +1,7 @@
 import csv
 import io
 from flask import Blueprint, request, jsonify, abort, session
-from backend.db.models import db, Player, Note, TournamentPlayer, Tournament, Game
+from db.models import db, Player, Note, TournamentPlayer, Tournament, Game
 from datetime import datetime, date, timedelta
 from .auth import login_required, admin_required
 
