@@ -83,8 +83,6 @@ def add_missing_columns():
                     print(f"    ✓ Column '{column_name}' added successfully!")
                 except Exception as e:
                     print(f"    ✗ Failed to add column '{column_name}': {e}")
-            else:
-                print(f"  Column '{column_name}' already exists")
 
 def get_sql_type_for_column(column):
     """Convert SQLAlchemy column type to SQL type string."""
