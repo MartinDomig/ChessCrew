@@ -70,6 +70,22 @@ def format_note(note):
         'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M:%S')
     }
 
+def format_tournament_data(tp, tournament):
+    """Format tournament data for a player's tournament participation."""
+    return {
+        'id': tp.id,  # TournamentPlayer ID for disassociation
+        'tournament_id': tournament.id,
+        'tournament_name': tournament.name,
+        'date': tournament.date.isoformat() if tournament.date else None,
+        'location': tournament.location,
+        'rank': tp.rank,
+        'points': tp.points,
+        'tiebreak1': tp.tiebreak1,
+        'tiebreak2': tp.tiebreak2,
+        'games_played': len([g for g in tournament.games if g.player_id == tp.id]),
+        'total_players': len(tournament.tournament_players)
+    }
+
 @players_bp.route('/players', methods=['GET'])
 @login_required
 def list_players():
@@ -105,18 +121,7 @@ def list_players():
             .all()
         
         player_tournaments[player.id] = [
-            {
-                'id': tp.id,  # TournamentPlayer ID for disassociation
-                'tournament_id': tournament.id,
-                'tournament_name': tournament.name,
-                'date': tournament.date.isoformat() if tournament.date else None,
-                'location': tournament.location,
-                'rank': tp.rank,
-                'points': tp.points,
-                'tiebreak1': tp.tiebreak1,
-                'tiebreak2': tp.tiebreak2,
-                'games_played': len([g for g in tournament.games if g.player_id == tp.id])
-            }
+            format_tournament_data(tp, tournament)
             for tp, tournament in tournament_players
         ]
     
@@ -165,18 +170,7 @@ def get_player(player_id):
         .all()
     
     tournaments = [
-        {
-            'id': tp.id,  # TournamentPlayer ID for disassociation
-            'tournament_id': tournament.id,
-            'tournament_name': tournament.name,
-            'date': tournament.date.isoformat() if tournament.date else None,
-            'location': tournament.location,
-            'rank': tp.rank,
-            'points': tp.points,
-            'tiebreak1': tp.tiebreak1,
-            'tiebreak2': tp.tiebreak2,
-            'games_played': len([g for g in tournament.games if g.player_id == tp.id])
-        }
+        format_tournament_data(tp, tournament)
         for tp, tournament in tournament_players
     ]
     
@@ -423,18 +417,6 @@ def get_player_tournaments(player_id):
         .all()
     
     return jsonify([
-        {
-            'id': tp.id,  # TournamentPlayer ID for disassociation
-            'tournament_id': tournament.id,
-            'tournament_name': tournament.name,
-            'date': tournament.date.isoformat() if tournament.date else None,
-            'location': tournament.location,
-            'rank': tp.rank,
-            'points': tp.points,
-            'tiebreak1': tp.tiebreak1,
-            'tiebreak2': tp.tiebreak2,
-            'games_played': len([g for g in tournament.games if g.player_id == tp.id]),
-            'total_players': len(tournament.tournament_players)
-        }
+        format_tournament_data(tp, tournament)
         for tp, tournament in tournament_players
     ])
