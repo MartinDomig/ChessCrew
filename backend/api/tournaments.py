@@ -12,6 +12,24 @@ from .auth import login_required, admin_required
 
 tournaments_bp = Blueprint('tournaments', __name__)
 
+def format_tournament_player(tp):
+    """Helper function to format tournament player data consistently"""
+    return {
+        'player_id': tp.player_id,
+        'name': tp.name,
+        'rank': tp.rank,
+        'points': tp.points,
+        'tiebreak1': tp.tiebreak1,
+        'tiebreak2': tp.tiebreak2,
+        'player': {
+            'id': tp.player.id,
+            'first_name': tp.player.first_name,
+            'last_name': tp.player.last_name,
+            'kat': tp.player.kat,
+            'birthday': tp.player.birthday.isoformat() if tp.player.birthday else None
+        } if tp.player else None
+    }
+
 # --- Tournament Endpoints ---
 @tournaments_bp.route('/tournaments', methods=['GET'])
 def list_tournaments():
@@ -65,29 +83,13 @@ def delete_tournament(tournament_id):
 # --- TournamentPlayer Endpoints ---
 @tournaments_bp.route('/tournaments/<int:tournament_id>/players', methods=['GET'])
 def list_tournament_players(tournament_id):
-    players = TournamentPlayer.query.filter_by(tournament_id=tournament_id).all()
-    return jsonify([
-        {
-            'player_id': tp.player_id,
-            'name': tp.name,
-            'rank': tp.rank,
-            'points': tp.points,
-            'tiebreak1': tp.tiebreak1,
-            'tiebreak2': tp.tiebreak2
-        } for tp in players
-    ])
+    players = TournamentPlayer.query.filter_by(tournament_id=tournament_id).options(db.joinedload(TournamentPlayer.player)).all()
+    return jsonify([format_tournament_player(tp) for tp in players])
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>/players/<int:player_id>', methods=['GET'])
 def get_tournament_player(tournament_id, player_id):
-    tp = TournamentPlayer.query.filter_by(tournament_id=tournament_id, player_id=player_id).first_or_404()
-    return jsonify({
-        'player_id': tp.player_id,
-        'name': tp.name,
-        'rank': tp.rank,
-        'points': tp.points,
-        'tiebreak1': tp.tiebreak1,
-        'tiebreak2': tp.tiebreak2
-    })
+    tp = TournamentPlayer.query.filter_by(tournament_id=tournament_id, player_id=player_id).options(db.joinedload(TournamentPlayer.player)).first_or_404()
+    return jsonify(format_tournament_player(tp))
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>/players', methods=['POST'])
 @admin_required
