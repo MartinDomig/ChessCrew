@@ -16,21 +16,24 @@ tournaments_bp = Blueprint('tournaments', __name__)
 @tournaments_bp.route('/tournaments', methods=['GET'])
 def list_tournaments():
     tournaments = Tournament.query.order_by(Tournament.date.desc()).all()
-    return jsonify([{'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location} for t in tournaments])
+    return jsonify([{'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location, 'is_team': t.is_team} for t in tournaments])
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['GET'])
 def get_tournament(tournament_id):
     t = Tournament.query.get_or_404(tournament_id)
-    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location})
+    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location, 'is_team': t.is_team})
 
 @tournaments_bp.route('/tournaments', methods=['POST'])
 @admin_required
 def create_tournament():
     data = request.json
-    t = Tournament(name=data['name'])
+    t = Tournament(
+        name=data['name'],
+        is_team=data.get('is_team', False)
+    )
     db.session.add(t)
     db.session.commit()
-    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location}), 201
+    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location, 'is_team': t.is_team}), 201
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['PUT'])
 @admin_required
@@ -47,8 +50,9 @@ def update_tournament(tournament_id):
             return jsonify({'error': 'Invalid date format. Expected YYYY-MM-DD'}), 400
     
     t.location = data.get('location', t.location)
+    t.is_team = data.get('is_team', t.is_team)
     db.session.commit()
-    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location})
+    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location, 'is_team': t.is_team})
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['DELETE'])
 @admin_required
@@ -466,6 +470,10 @@ def import_tournaments_xlsx():
         db.session.flush()
 
         ranked_players, result_format, round_columns = parse_players(df, header, header_row_idx, tournament, find_existing_player)
+
+        if result_format is 'team':
+            tournament.is_team = True
+            db.session.add(tournament)
         
         db.session.flush()
         for p in ranked_players:

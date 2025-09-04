@@ -47,6 +47,7 @@ class Tournament(db.Model):
     checksum = db.Column(db.String(64), nullable=False, unique=True)
     date = db.Column(db.Date, nullable=False)
     location = db.Column(db.String(120), nullable=True)
+    is_team = db.Column(db.Boolean, nullable=False, default=False)
     tournament_players = db.relationship('TournamentPlayer', back_populates='tournament', cascade="all, delete-orphan")
     players = db.relationship(
         'Player',

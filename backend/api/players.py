@@ -78,6 +78,7 @@ def format_tournament_data(tp, tournament):
         'tournament_name': tournament.name,
         'date': tournament.date.isoformat() if tournament.date else None,
         'location': tournament.location,
+        'is_team': tournament.is_team,
         'rank': tp.rank,
         'points': tp.points,
         'tiebreak1': tp.tiebreak1,
