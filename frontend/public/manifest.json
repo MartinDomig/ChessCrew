@@ -12,46 +12,57 @@
       "src": "icon-144x144.png",
       "type": "image/png",
       "sizes": "144x144",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon-144x144.png",
+      "type": "image/png",
+      "sizes": "144x144",
+      "purpose": "maskable"
     },
     {
       "src": "logo192.png",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
     },
     {
       "src": "icon-256x256.png",
       "type": "image/png",
       "sizes": "256x256",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-384x384.png",
       "type": "image/png",
       "sizes": "384x384",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "chesscrew-1024x1024.png",
       "type": "image/png",
       "sizes": "1024x1024",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
   "start_url": "/",
-  "display": "fullscreen",
+  "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#000000",
   "background_color": "#ffffff",
   "categories": ["sports", "productivity"],
   "lang": "de",
-  "scope": "/",
-  "display_override": ["fullscreen", "standalone", "minimal-ui"]
+  "scope": "/"
 }

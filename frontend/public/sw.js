@@ -1,10 +1,10 @@
 // Cache version - update this when deploying new code
-const CACHE_VERSION = 'v1757010589903';
+const CACHE_VERSION = 'dev';
 const CACHE_NAME = 'chesscrew-' + CACHE_VERSION;
 const API_CACHE_NAME = 'chesscrew-api-cache-' + CACHE_VERSION;
 const STATIC_ASSETS = [
   '/',
-  '/static/js/main.b37dc3c3.js',
+  '/static/js/main.js',
   '/manifest.json',
   '/favicon.ico',
   '/logo192.png',
@@ -50,8 +50,8 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           // Delete any cache that doesn't match current version
-          if (cacheName.startsWith('chesscrew-') && 
-              cacheName !== CACHE_NAME && 
+          if (cacheName.startsWith('chesscrew-') &&
+              cacheName !== CACHE_NAME &&
               cacheName !== API_CACHE_NAME) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
@@ -91,7 +91,7 @@ self.addEventListener('fetch', (event) => {
         // For API requests, use network-first strategy except for players and tournaments
         if (isApiRequest) {
           const isPlayersOrTournaments = url.pathname.includes('/api/players') || url.pathname.includes('/api/tournaments');
-          
+
           if (!isPlayersOrTournaments) {
             // Network-first for other API requests
             return fetch(event.request).then((networkResponse) => {
@@ -100,6 +100,7 @@ self.addEventListener('fetch', (event) => {
                 return networkResponse;
               }
 
+              // Cache successful API responses
               const responseToCache = networkResponse.clone();
               caches.open(API_CACHE_NAME)
                 .then((cache) => {
@@ -107,131 +108,37 @@ self.addEventListener('fetch', (event) => {
                 });
 
               return networkResponse;
-            });
-          } else {
-            // Cache-first for players and tournaments
-            return caches.open(API_CACHE_NAME).then(apiCache => {
-              return apiCache.match(event.request).then(apiResponse => {
-                if (apiResponse) {
-                  console.log('Serving API from cache:', event.request.url);
-                  return apiResponse;
-                }
-
-                // If not in cache, fetch from network and cache if successful
-                return fetch(event.request).then((response) => {
-                  // Don't cache non-200 responses (including 403)
-                  if (!response || response.status !== 200 || response.type !== 'basic') {
-                    return response;
-                  }
-
-                  const responseToCache = response.clone();
-                  apiCache.put(event.request, responseToCache);
-                  return response;
-                });
-              });
+            }).catch((error) => {
+              console.log('Network request failed, trying cache:', error);
+              // If network fails, try cache
+              return caches.match(event.request);
             });
           }
         }
 
-        // Otherwise, fetch from network for non-API requests
-        return fetch(event.request).then((response) => {
-          // Don't cache non-successful responses
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
+        // For static assets, use cache-first strategy
+        return fetch(event.request).then((networkResponse) => {
+          // Don't cache non-200 responses
+          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+            return networkResponse;
           }
 
-          // Clone the response as it's a stream and can only be consumed once
-          const responseToCache = response.clone();
-
-          // Cache the response for future requests
+          // Cache successful responses
+          const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME)
             .then((cache) => {
               cache.put(event.request, responseToCache);
             });
 
-          return response;
-        });
-      })
-      .catch(() => {
-        // If both cache and network fail, return a fallback page for navigation requests
-        if (event.request.destination === 'document') {
-          return caches.match('/').then(cachedRoot => {
-            if (cachedRoot) {
-              return cachedRoot;
-            }
-            // If no cached root, return a basic offline page
-            return new Response(
-              `<!DOCTYPE html>
-              <html>
-              <head>
-                <title>ChessCrew - Offline</title>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-              </head>
-              <body>
-                <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
-                  <h1>You're Offline</h1>
-                  <p>ChessCrew is not available right now. Please check your internet connection and try again.</p>
-                  <button onclick="window.location.reload()">Retry</button>
-                </div>
-              </body>
-              </html>`,
-              {
-                headers: { 'Content-Type': 'text/html' }
-              }
-            );
+          return networkResponse;
+        }).catch((error) => {
+          console.log('Network request failed:', error);
+          // If both network and cache fail, return offline page or error
+          return new Response('Offline - Content not available', {
+            status: 503,
+            statusText: 'Service Unavailable'
           });
-        }
-        
-        // For non-document requests that fail, return a proper error response
-        return new Response('Service Unavailable', { 
-          status: 503, 
-          statusText: 'Service Unavailable' 
         });
       })
-  );
-});
-
-// Handle background sync for when the app comes back online
-self.addEventListener('sync', (event) => {
-  console.log('Background sync triggered:', event.tag);
-  
-  if (event.tag === 'background-sync') {
-    event.waitUntil(
-      // Add any background sync logic here if needed
-      Promise.resolve()
-    );
-  }
-});
-
-// Handle push notifications (if needed in the future)
-self.addEventListener('push', (event) => {
-  console.log('Push notification received');
-  
-  const options = {
-    body: event.data ? event.data.text() : 'New update available!',
-    icon: '/icon-256x256.png',
-    badge: '/icon-144x144.png',
-    vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: '1'
-    },
-    actions: [
-      {
-        action: 'explore',
-        title: 'Open ChessCrew',
-        icon: '/icon-256x256.png'
-      },
-      {
-        action: 'close',
-        title: 'Close',
-        icon: '/icon-256x256.png'
-      }
-    ]
-  };
-
-  event.waitUntil(
-    self.registration.showNotification('ChessCrew', options)
   );
 });

@@ -6,6 +6,7 @@ services:
     environment:
       - REACT_APP_API_URL=https://chesscrew-dev.domig.net/api
     volumes:
+      - ..:/workspace
       - .:/app
     working_dir: /app
     command: npm start
@@ -15,6 +16,7 @@ services:
     environment:
       - REACT_APP_API_URL=https://chesscrew.domig.net/api
     volumes:
+      - ..:/workspace
       - .:/app
     working_dir: /app
     command: npm run build
