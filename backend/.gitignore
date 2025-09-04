@@ -1,0 +1,20 @@
+# Virtual environment
+venv/
+env/
+
+# Logs
+backend/logs/
+*.log
+
+# Temporary files
+/tmp/
+*.tmp
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Excel files
+*.xlsx
+*.xls

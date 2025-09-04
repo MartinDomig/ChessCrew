@@ -26,6 +26,15 @@ class Player(db.Model):
     club = db.Column(db.String(80), nullable=True)
     is_active = db.Column(db.Boolean, default=False)
     female = db.Column(db.Boolean, default=False)
+    
+    # Helper properties
+    @property
+    def name(self):
+        return f"{self.first_name} {self.last_name}"
+    
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
     tags = db.relationship('Tag', secondary='player_tags', back_populates='players')
     notes = db.relationship('Note', back_populates='player')
     tournament_players = db.relationship('TournamentPlayer', back_populates='player')
@@ -36,9 +45,6 @@ class Player(db.Model):
         overlaps='tournament_players'
     )
 
-    def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
 class Tournament(db.Model):
     __tablename__ = 'tournaments'
 
@@ -48,6 +54,15 @@ class Tournament(db.Model):
     date = db.Column(db.Date, nullable=False)
     location = db.Column(db.String(120), nullable=True)
     is_team = db.Column(db.Boolean, nullable=False, default=False)
+    
+    # Chess-results.com specific fields
+    chess_results_id = db.Column(db.String(20), nullable=True, unique=True)  # Tournament ID from chess-results.com
+    chess_results_url = db.Column(db.String(200), nullable=True)  # Original URL
+    rounds = db.Column(db.Integer, nullable=True)  # Number of rounds
+    time_control = db.Column(db.String(50), nullable=True)  # Time control info
+    organizer = db.Column(db.String(120), nullable=True)  # Tournament organizer
+    imported_at = db.Column(db.DateTime, nullable=True)  # When it was imported from chess-results
+    
     tournament_players = db.relationship('TournamentPlayer', back_populates='tournament', cascade="all, delete-orphan")
     players = db.relationship(
         'Player',
@@ -64,10 +79,16 @@ class TournamentPlayer(db.Model):
     tournament_id = db.Column(db.Integer, db.ForeignKey('tournaments.id'), nullable=False)
     player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=True)
     name = db.Column(db.String(160), nullable=True)  # Store name if no player_id
-    rank = db.Column(db.Integer, nullable=True)
+    ranking = db.Column(db.Integer, nullable=True)  # Final ranking in tournament
     points = db.Column(db.Float, nullable=True)
     tiebreak1 = db.Column(db.Float, nullable=True)
     tiebreak2 = db.Column(db.Float, nullable=True)
+    
+    # Additional chess-results.com fields
+    starting_rank = db.Column(db.Integer, nullable=True)  # Starting rank
+    rating = db.Column(db.Integer, nullable=True)  # Rating at time of tournament
+    title = db.Column(db.String(10), nullable=True)  # Chess title (GM, IM, etc)
+    chess_results_id = db.Column(db.String(20), nullable=True)  # Player ID from chess-results.com for this tournament
 
     __mapper_args__ = {
         'confirm_deleted_rows': False
@@ -84,7 +105,7 @@ class Game(db.Model):
     round_number = db.Column(db.Integer, nullable=False)
     player_id = db.Column(db.Integer, db.ForeignKey('tournament_players.id'), nullable=False)
     player_color = db.Column(db.String(10), nullable=True)  # e.g., "white" or "black", if known
-    opponent_id = db.Column(db.Integer, db.ForeignKey('tournament_players.id'), nullable=False)
+    opponent_id = db.Column(db.Integer, db.ForeignKey('tournament_players.id'), nullable=True)  # Allow null for team tournaments
     result = db.Column(db.String(10), nullable=False)  # e.g., "1", "0", "1/2"
     pgn = db.Column(db.Text, nullable=True)  # Store moves in a text format
 

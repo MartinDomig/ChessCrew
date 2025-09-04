@@ -199,355 +199,6 @@ def delete_game(tournament_id, game_id):
     db.session.commit()
     return '', 204
 
-def find_existing_player(name, shuffling=False):
-    name = name.strip()
-    if not name:
-        return None
-    if ',' in name:
-        last, first = [n.strip() for n in name.split(',', 1)]
-    else:
-        parts = name.split()
-        if len(parts) == 2:
-            first, last = parts
-        elif len(parts) > 2:
-            first = parts[0]
-            last = ' '.join(parts[1:])
-        else:
-            first = name
-            last = ''
-    # Lookup 1: Lastname Firstname
-    player = Player.query.filter(
-        db.func.lower(Player.first_name) == first.lower(),
-        db.func.lower(Player.last_name) == last.lower()
-    ).first()
-    if player:
-        return player
-    # Lookup 2: Firstname Lastname
-    player = Player.query.filter(
-        db.func.lower(Player.first_name) == last.lower(),
-        db.func.lower(Player.last_name) == first.lower()
-    ).first()
-    if player:
-        return player
-
-    # if name contains Ae, ae, Oe, oe, Ue, ue replace with umlauts and try again
-    name_with_umlauts = name.lower().replace('ae', 'ä').replace('oe', 'ö').replace('ue', 'ü').replace('sz', 'ß')
-    if name_with_umlauts != name.lower():
-        player = find_existing_player(name_with_umlauts)
-        if player:
-            return player
-    
-    if not shuffling:
-        # shuffle name parts: move the first part to the last
-        name_parts = name.split()
-        for i in range(len(name_parts)):
-            shuffled_name = ' '.join(name_parts[i:] + name_parts[:i])
-            player = find_existing_player(shuffled_name, shuffling=True)
-            if player:
-                return player
-
-    return None
-
-def parse_tournament_metadata(df, request):
-    # Tournament name is always on the second line (index 1)
-    second_row = df.iloc[1]
-    values = [str(v).strip() for v in second_row if pd.notnull(v)]
-    if len(values) == 1:
-        tournament_name = values[0].strip()
-    else:
-        raise ValueError("No tournament name found")
-
-    location = request.form.get('location')
-    date = None
-
-    # Exports can contain tournament details. If they do, we will have a line for each detail:
-    if not location:
-        for idx, row in df.iterrows():
-            if isinstance(row.values[0], str) and row.values[0].startswith('Ort :'):
-                location = row.values[0].split(':', 1)[1].strip()
-    for idx, row in df.iterrows():
-        if isinstance(row.values[0], str) and row.values[0].startswith('Datum :'):
-            date = row.values[0].split(':', 1)[1].strip()
-            date = datetime.strptime(date, '%d.%m.%Y').date() if date else None
-
-    if not date:
-        date_str = request.form.get('date')
-        date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else None
-    if not date:
-        raise ValueError("No tournament date given")
-
-    return tournament_name, location, date
-
-def find_header_row(df):
-    for idx, row in df.iterrows():
-        values = [str(v).strip() for v in row]
-        if 'Name' in values:
-            return idx
-    raise ValueError("Header row not found")
-
-def detect_result_format(df, header, header_row_idx):
-    # Check for "Kapitän:" marker which indicates team tournaments
-    for i in range(header_row_idx):
-        row = [str(v).strip() for v in df.iloc[i]]
-        if row and row[0].startswith('Kapitän:'):
-            return 'team'
-
-    round_columns = detect_round_columns(header)
-    for i in range(header_row_idx + 1, len(df)):
-        row = [str(v).strip() for v in df.iloc[i]]
-        if not row:
-            break
-        data = dict(zip(header, [str(v).strip() for v in row]))
-        if not data.get('Name', '') or data.get('Name', '') == "nan":
-            break
-
-        for r in round_columns:
-            round_result = data.get(r)
-            if round_result in ['*', '***']:
-                continue
-            if re.match(r'^\d+ \d+$', round_result):
-                return 'pair'
-            if re.match(r'^\d+[wsb][10½+]$', round_result):
-                return 'complex'
-
-    return 'simple'
-
-def parse_players(df, header, header_row_idx, tournament, find_existing_player, result_format):
-    # first column after rounds contains wtg1
-    round_columns = detect_round_columns(header)
-    wtg1_column = header[header.index(round_columns[-1]) + 1] if round_columns else None
-    if not wtg1_column:
-        raise ValueError("No column found for Wtg1")
-    wtg2_column = header[header.index(round_columns[-1]) + 2] if round_columns else None
-    if not wtg2_column:
-        raise ValueError("No column found for Wtg2")
-    wtg3_column = header[header.index(round_columns[-1]) + 3] if round_columns else None
-
-    result_format = None
-    ranked_players = []
-    rank = 1
-
-    for i in range(header_row_idx + 1, len(df)):
-        row = [str(v).strip() for v in df.iloc[i]]
-        if not row:
-            break
-        data = dict(zip(header, [str(v).strip() for v in row]))
-        if not data.get('Name', '') or data.get('Name', '') == "nan":
-            break
-
-        name = data.get('Name', '').strip()
-        player = find_existing_player(name)
-        if player:
-            player.is_active = True
-            db.session.add(player)
-        else:
-            print('Player not found:', name)
-
-        if data.get(header[0]) != "nan":
-            rank = int(data.get(header[0], 0))
-
-        tp = TournamentPlayer(
-            tournament_id=tournament.id,
-            player_id=player.id if player else None,
-            name=name,
-            rank=rank,
-            points=float(data.get(wtg1_column, 0)),
-            tiebreak1=float(data.get(wtg2_column, 0)),
-            tiebreak2=float(data.get(wtg3_column, 0))
-        )
-        ranked_players.append(tp)
-        db.session.add(tp)
-
-    if not ranked_players:
-        raise ValueError('No valid player data found')
-
-    rank_dict = {tp.rank: tp for tp in ranked_players}
-    return ranked_players, round_columns, rank_dict
-
-def parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format, rank_dict):
-    imported_games = 0
-    rank = 0
-    for i in range(header_row_idx + 1, len(df)):
-        row = [str(v).strip() for v in df.iloc[i]]
-        if not row:
-            break
-        data = dict(zip(header, [str(v).strip() for v in row]))
-        if not data.get('Name', '') or data.get('Name', '') == "nan":
-            break
-
-        rank += 1
-        player = ranked_players[rank - 1]
-        if not player:
-            raise ValueError(f'Player not found: {data.get(header[0], 0)}')
-
-        for r in range(len(round_columns)):
-            round_result = data.get(round_columns[r])
-            if round_result == '*':
-                continue
-
-            player_color = None
-            opponent = None
-            result = None
-
-            if result_format == 'simple':
-                if round_result in ['*', '***', '+']:
-                    continue
-                round_num = r + 1
-                opponent_rank = round_num
-                if opponent_rank not in rank_dict or opponent_rank == player.rank:
-                    continue
-                opponent = rank_dict[opponent_rank]
-                result = round_result
-            elif result_format == 'team':
-                if round_result in ['*', '***', '+'] or round_result not in ['1', '0', '½']:
-                    continue
-                # For team, no opponent, just record result but don't create Game
-                continue
-            elif result_format == 'pair':
-                if round_result == '+':
-                    continue
-                parts = round_result.split()
-                if len(parts) != 2:
-                    print(f"DEBUG: Invalid pair format {round_result} for {player.name}")
-                    continue
-                try:
-                    opponent_nr = int(parts[0])
-                    result = parts[1]
-                except ValueError:
-                    print(f"DEBUG: Invalid numbers in {round_result} for {player.name}")
-                    continue
-                if opponent_nr < 1 or opponent_nr > len(ranked_players):
-                    print(f"DEBUG: Opponent number {opponent_nr} out of range for {player.name}")
-                    continue
-                opponent = ranked_players[opponent_nr - 1]
-                if opponent == player:
-                    print(f"DEBUG: Self opponent for {player.name}")
-                    continue
-            else:
-                if round_result == '+':
-                    continue
-                m = re.match(r'^(\d+)([wsb])([10½+])$', round_result)
-                if not m:
-                    print(f'Invalid round result, assuming skip: {round_result} for {player.name}')
-                    continue
-                opponent_nr = int(m.group(1))
-                opponent = ranked_players[opponent_nr - 1]
-                result = m.group(3)
-                color = m.group(2)
-                if color == 'w':
-                    player_color = 'white'
-                elif color in ['s', 'b']:
-                    player_color = 'black'
-
-            if result_format != 'team':
-                if not opponent:
-                    raise ValueError(f'Invalid opponent: {round_result} for {player.name}')
-                if opponent and player.id == opponent.id:
-                    raise ValueError(f'Player cannot play against themselves: {player.name}')
-            
-            if not result:
-                raise ValueError(f'Invalid round result: {round_result} for {player.name}')
-
-            game = Game(
-                tournament_id=tournament.id,
-                player_id=player.id,
-                player_color=player_color,
-                opponent_id=opponent.id if opponent else None,
-                round_number=r + 1,
-                result=result
-            )
-            db.session.add(game)
-            imported_games += 1
-
-    return imported_games
-@admin_required
-def import_tournaments_xlsx():
-    if 'file' not in request.files:
-        print("No file uploaded")
-        return jsonify({'error': 'No file uploaded'}), 400
-
-    file = request.files['file']
-    if not file.filename.endswith('.xlsx'):
-        print("Invalid file type")
-        return jsonify({'error': 'Invalid file type'}), 400
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
-        file.save(tmp.name)
-        tmp_path = tmp.name
-
-    # create a sha256 checksum of the result file
-    sha256 = hashlib.sha256()
-    with open(tmp_path, 'rb') as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-    checksum = sha256.hexdigest()
-
-    # abort if a tournament with the same checksum already exists
-    if Tournament.query.filter_by(checksum=checksum).first():
-        return jsonify({'error': 'Tournament already imported'}), 400
-
-    try:
-        df = pd.read_excel(tmp_path, header=None)
-        
-        tournament_name, location, date = parse_tournament_metadata(df, request)
-        
-        header_row_idx = find_header_row(df)
-        header = [str(v).strip() for v in df.iloc[header_row_idx]]
-        if not header:
-            raise ValueError("No valid header found")
-
-        # Parse players first to check if any can be mapped
-        result_format = detect_result_format(df, header, header_row_idx)
-        print(f"Detected result format: {result_format}")
-
-        # Check if any players can be mapped before creating tournament
-        mapped_players_count = 0
-        for i in range(header_row_idx + 1, len(df)):
-            row = [str(v).strip() for v in df.iloc[i]]
-            if not row:
-                break
-            data = dict(zip(header, [str(v).strip() for v in row]))
-            if not data.get('Name', '') or data.get('Name', '') == "nan":
-                break
-            name = data.get('Name', '').strip()
-            player = find_existing_player(name)
-            if player:
-                mapped_players_count += 1
-                break  # We only need to find one mapped player
-
-        if mapped_players_count == 0:
-            return jsonify({'error': 'No players from this tournament could be mapped to existing players. Tournament import cancelled.'}), 400
-
-        # Create tournament only if at least one player can be mapped
-        print("Creating tournament:", tournament_name)
-        tournament = Tournament(name=tournament_name, checksum=checksum, date=date, location=location)
-        db.session.add(tournament)
-        db.session.flush()
-
-        ranked_players, round_columns, rank_dict = parse_players(df, header, header_row_idx, tournament, find_existing_player, result_format)
-
-        if result_format == 'team':
-            tournament.is_team = True
-            db.session.add(tournament)
-        
-        db.session.flush()
-        for p in ranked_players:
-            print("Ranked Player: {} - {} (ID: {})".format(p.rank, p.name, p.player_id))
-
-        imported_games = parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format, rank_dict)
-
-        db.session.commit()
-
-    except Exception as e:
-        print("Import error:", e)
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 400
-
-    finally:
-        os.remove(tmp_path)
-
-    return jsonify({'imported': imported_games, 'success': True}), 200
-
 @tournaments_bp.route('/tournament-players/<int:tp_id>/disassociate', methods=['PUT'])
 @admin_required
 def disassociate_player_from_tournament(tp_id):
@@ -567,4 +218,82 @@ def disassociate_player_from_tournament(tp_id):
         'old_player_id': old_player_id,
         'message': 'Player disassociated from tournament'
     })
+
+# --- Crawler Endpoints ---
+@tournaments_bp.route('/crawler/run', methods=['POST'])
+@admin_required
+def run_crawler():
+    """Manually trigger the chess results crawler"""
+    try:
+        from chess_results_crawler import run_crawler
+        
+        # Run the crawler
+        processed_count = run_crawler()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Crawler completed successfully. Processed {processed_count} tournaments',
+            'processed_count': processed_count
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Crawler failed: {str(e)}'
+        }), 500
+
+@tournaments_bp.route('/crawler/status', methods=['GET'])
+@admin_required
+def crawler_status():
+    """Get status information about the crawler"""
+    try:
+        import os
+        from datetime import datetime
+        
+        log_file = os.path.join(os.path.dirname(__file__), '..', 'logs', 'crawler.log')
+        
+        status = {
+            'log_file_exists': os.path.exists(log_file),
+            'last_run': None,
+            'recent_logs': [],
+            'crawler_configured': True
+        }
+        
+        # Try to get last run time and recent logs from log file
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, 'r') as f:
+                    lines = f.readlines()
+                    # Get last 20 lines for recent logs
+                    status['recent_logs'] = [line.strip() for line in lines[-20:] if line.strip()]
+                    
+                    # Try to extract last run time
+                    for line in reversed(lines):
+                        if 'Starting scheduled crawler run' in line or 'Crawler run completed' in line:
+                            # Extract timestamp from log line
+                            parts = line.split(' - ')
+                            if len(parts) > 0:
+                                timestamp_str = parts[0]
+                                try:
+                                    status['last_run'] = timestamp_str
+                                    break
+                                except:
+                                    pass
+            except Exception as e:
+                status['log_error'] = str(e)
+        
+        # Check for existing tournaments from chess-results.com
+        tournaments_count = Tournament.query.filter(
+            Tournament.name.like('%Chess%') | 
+            Tournament.name.like('%Schach%')
+        ).count()
+        status['imported_tournaments'] = tournaments_count
+        
+        return jsonify(status)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error getting crawler status: {str(e)}'
+        }), 500
 
