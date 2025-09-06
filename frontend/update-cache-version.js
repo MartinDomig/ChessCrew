@@ -13,39 +13,31 @@ try {
   // Try to get git commit hash first
   let newVersion;
   try {
+    // Configure git for cross-filesystem access and ownership issues
+    try {
+      execSync('git config --global --add safe.directory /app', { stdio: 'pipe' });
+      execSync('git config --global --add safe.directory /workspace', { stdio: 'pipe' });
+      execSync('git config --global core.filemode false', { stdio: 'pipe' });
+    } catch (configError) {
+      console.log('⚠️  Could not configure git settings, continuing...');
+    }
+
     // Try from current directory first
     newVersion = execSync('git describe --always', { encoding: 'utf8' }).trim();
     console.log('📋 Using git describe for cache version');
   } catch (gitError) {
+    console.log('⚠️  Git not available, using file hash for cache version');
+    // Fallback: Use hash of key source files
     try {
-      // Check if we're in a container environment with workspace
-      const fs = require('fs');
-      if (fs.existsSync('/workspace')) {
-        // Configure git to allow access to the workspace directory
-        try {
-          execSync('git config --global --add safe.directory /workspace', { stdio: 'pipe' });
-        } catch (configError) {
-          console.log('⚠️  Could not configure git safe directory, continuing...');
-        }
-        // Try from workspace directory (parent directory)
-        newVersion = execSync('cd /workspace && git describe --always', { encoding: 'utf8' }).trim();
-        console.log('📋 Using git describe from workspace for cache version');
-      } else {
-        throw new Error('Not in container environment');
-      }
-    } catch (workspaceError) {
-      // Fallback: Use hash of key source files
-      console.log('⚠️  Git not available, using file hash for cache version');
-      try {
-        const srcPath = path.join(__dirname, 'src');
-        const files = getAllFiles(srcPath);
-        const fileContents = files.map(file => fs.readFileSync(file, 'utf8')).join('');
-        newVersion = crypto.createHash('md5').update(fileContents).digest('hex').substring(0, 8);
-      } catch (fileError) {
-        // Final fallback: Use timestamp
-        console.log('⚠️  File hashing failed, using timestamp');
-        newVersion = 'v' + Date.now();
-      }
+      const srcPath = path.join(__dirname, 'src');
+      const files = getAllFiles(srcPath);
+      const fileContents = files.map(file => fs.readFileSync(file, 'utf8')).join('');
+      newVersion = crypto.createHash('md5').update(fileContents).digest('hex').substring(0, 8);
+      console.log('📋 Using file hash for cache version');
+    } catch (fileError) {
+      // Final fallback: Use timestamp
+      console.log('⚠️  File hashing failed, using timestamp');
+      newVersion = 'v' + Date.now();
     }
   }
 
