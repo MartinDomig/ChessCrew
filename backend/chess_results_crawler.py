@@ -552,24 +552,43 @@ class ChessResultsCrawler:
                     soup = BeautifulSoup(response.content, 'html.parser')
                     logger.info(f"Successfully submitted tournament details form for {tournament_id}")
             
-            # Step 2: Look for "Tournament details" link and follow it
+            # Step 2: Look for "Tournament details" link and follow it  
             tournament_details_link = None
             # Look for various patterns for the tournament details link
+            # Be more specific to avoid matching privacy policy or other non-tournament links
             details_link_patterns = [
-                'tournament details',
-                'turnier details', 
-                'tournament info',
-                'turnier info',
-                'details',
-                'info'
+                r'tournament\s+details',
+                r'turnier\s+details', 
+                r'tournament\s+info',
+                r'turnier\s+info',
+                r'turnierdetails',
+                r'tournament\s+information'
             ]
             
             # Find the tournament details link
             for pattern in details_link_patterns:
                 link = soup.find('a', string=re.compile(pattern, re.IGNORECASE))
                 if link and link.get('href'):
-                    tournament_details_link = link
-                    break
+                    href = link.get('href')
+                    # Avoid privacy policy, imprint, and other non-tournament pages
+                    if not any(exclude in href.lower() for exclude in ['impressum', 'datenschutz', 'privacy', 'imprint', 'contact']):
+                        tournament_details_link = link
+                        logger.info(f"Found tournament details link with pattern '{pattern}': {href}")
+                        break
+            
+            # Alternative: look for links that contain the tournament ID and might be details
+            if not tournament_details_link:
+                all_links = soup.find_all('a', href=True)
+                for link in all_links:
+                    href = link.get('href', '')
+                    text = link.get_text().strip().lower()
+                    # Look for tournament-specific links that might be details
+                    if (tournament_id in href and 
+                        any(term in text for term in ['detail', 'info']) and
+                        not any(exclude in href.lower() for exclude in ['impressum', 'datenschutz', 'privacy', 'imprint', 'contact'])):
+                        tournament_details_link = link
+                        logger.info(f"Found tournament details link by ID match: {href}")
+                        break
             
             # If found, follow the link
             if tournament_details_link:
@@ -615,6 +634,8 @@ class ChessResultsCrawler:
                         soup = BeautifulSoup(response.content, 'html.parser')
                         logger.info(f"Successfully submitted tournament details form on details page for {tournament_id}")
                         tournament_url = response.url  # Update URL in case of redirect
+            else:
+                logger.info(f"No tournament details link found for tournament {tournament_id}, continuing with current page")
             
             # Step 4: Parse tournament metadata (elo rating, date, location, type, time control)
             tournament_metadata = self._parse_tournament_metadata(soup, tournament_id)
@@ -1308,6 +1329,231 @@ class ChessResultsCrawler:
         except Exception as e:
             logger.error(f"Error in crawling process: {str(e)}")
             return 0
+
+    def get_team_composition_url(self, tournament_url, tournament_id):
+        """
+        Navigate to tournament page and find the "Team Composition with round-results" link
+        This requires first clicking "Show tournament details" to reveal navigation
+        """
+        try:
+            logger.info(f"🔍 Navigating to find team composition link for tournament {tournament_id}...")
+            
+            # Get the main tournament page first (this should handle "Show tournament details")
+            response = self.session.get(tournament_url)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Check if we need to submit "Show tournament details" form
+            details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'}) or \
+                            soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
+            
+            if details_button:
+                logger.info(f"   📋 Found 'Show tournament details' button for {tournament_id}, submitting...")
+                
+                # Get form data for submission
+                form = details_button.find_parent('form')
+                if form:
+                    form_data = {}
+                    
+                    # Get all hidden inputs
+                    for hidden_input in form.find_all('input', type='hidden'):
+                        name = hidden_input.get('name')
+                        value = hidden_input.get('value', '')
+                        if name:
+                            form_data[name] = value
+                    
+                    # Add the button click
+                    button_name = details_button.get('name', 'cb_alleDetails')
+                    button_value = details_button.get('value', 'Show tournament details')
+                    form_data[button_name] = button_value
+                    
+                    # Submit the form
+                    response = self.session.post(tournament_url, data=form_data)
+                    response.raise_for_status()
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    logger.info(f"   ✅ Successfully revealed tournament navigation for {tournament_id}")
+            
+            # Now look for team composition links
+            logger.info(f"   🔍 Looking for team composition links for {tournament_id}...")
+            
+            # Common patterns for team composition with round results
+            composition_patterns = [
+                r'team.*composition.*round.*result',
+                r'mannschaftsaufstellung.*runden.*ergebnis',
+                r'team.*comp.*round',
+                r'aufstellung.*runden',
+                r'composition.*round',
+                r'team.*round.*result'
+            ]
+            
+            # Look for links with these patterns
+            all_links = soup.find_all('a', href=True)
+            
+            for link in all_links:
+                link_text = link.get_text(strip=True).lower()
+                href = link.get('href')
+                
+                # Check text patterns
+                for pattern in composition_patterns:
+                    if re.search(pattern, link_text, re.IGNORECASE):
+                        composition_url = href if href.startswith('http') else urljoin(tournament_url, href)
+                        logger.info(f"   ✅ Found team composition link for {tournament_id}: {link_text}")
+                        return composition_url
+            
+            # Alternative: Look for art=20 parameter which is often used for team composition
+            logger.info(f"   🔍 Looking for art=20 (team composition) links for {tournament_id}...")
+            for link in all_links:
+                href = link.get('href')
+                if 'art=20' in href:
+                    composition_url = href if href.startswith('http') else urljoin(tournament_url, href)
+                    logger.info(f"   ✅ Found art=20 team composition link for {tournament_id}")
+                    return composition_url
+            
+            # Try constructing the URL manually
+            logger.info(f"   🔧 Attempting to construct team composition URL for {tournament_id}...")
+            if '?' in tournament_url:
+                base_url = tournament_url.split('?')[0]
+            else:
+                base_url = tournament_url
+            
+            # Try common team composition URL patterns
+            test_urls = [
+                f"{base_url}?art=20",  # Team composition
+                f"{base_url}?art=20&prt=1",  # Team composition with details
+                f"{base_url}?art=20&lan=1",  # Team composition in English
+            ]
+            
+            for test_url in test_urls:
+                try:
+                    test_response = self.session.get(test_url)
+                    if test_response.status_code == 200:
+                        # Check if this page contains team/player data
+                        test_content = test_response.text.lower()
+                        if any(keyword in test_content for keyword in ['team', 'mannschaft', 'player', 'spieler']):
+                            logger.info(f"   ✅ Found working team composition URL for {tournament_id}: {test_url}")
+                            return test_url
+                except:
+                    continue
+            
+            logger.warning(f"   ❌ Could not find team composition with round-results link for {tournament_id}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"   ❌ Error finding team composition URL for {tournament_id}: {e}")
+            return None
+
+    def download_team_composition_excel(self, team_composition_url, tournament_id):
+        """
+        Download Excel export from the team composition page
+        """
+        try:
+            logger.info(f"📊 Downloading Excel from team composition page for tournament {tournament_id}...")
+            
+            # Navigate to team composition page
+            response = self.session.get(team_composition_url)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Check for "Show tournament details" button on this page too
+            details_button = soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
+            if details_button:
+                logger.info(f"   📋 Found 'Show tournament details' on team composition page for {tournament_id}, submitting...")
+                
+                form = details_button.find_parent('form')
+                if form:
+                    form_data = {}
+                    
+                    # Get all hidden inputs
+                    for hidden_input in form.find_all('input', type='hidden'):
+                        name = hidden_input.get('name')
+                        value = hidden_input.get('value', '')
+                        if name:
+                            form_data[name] = value
+                    
+                    # Add the button click
+                    button_name = details_button.get('name')
+                    button_value = details_button.get('value')
+                    if button_name:
+                        form_data[button_name] = button_value
+                    
+                    # Submit the form
+                    response = self.session.post(team_composition_url, data=form_data)
+                    response.raise_for_status()
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    logger.info(f"   ✅ Revealed team composition details for {tournament_id}")
+            
+            # Look for Excel export link
+            logger.info(f"   🔍 Looking for Excel export link for {tournament_id}...")
+            excel_links = soup.find_all('a', string=re.compile(r'excel|xlsx|xls', re.IGNORECASE))
+            if not excel_links:
+                # Try href patterns
+                excel_links = soup.find_all('a', href=re.compile(r'excel=', re.IGNORECASE))
+            
+            excel_url = None
+            if excel_links:
+                href = excel_links[0].get('href')
+                excel_url = href if href.startswith('http') else urljoin(team_composition_url, href)
+                logger.info(f"   ✅ Found Excel export link for {tournament_id}: {excel_url}")
+            else:
+                # Try to construct Excel URL using the base URL pattern
+                logger.info(f"   🔧 Constructing Excel export URL for {tournament_id}...")
+                base_url = team_composition_url.split('?')[0] if '?' in team_composition_url else team_composition_url
+                
+                # Try different Excel export patterns for team composition
+                test_excel_urls = [
+                    f"{base_url}?lan=1&art=1&prt=4&excel=2010",  # Team composition with Excel
+                    f"{base_url}?art=1&excel=2010",              # Simplified version
+                    f"{base_url}?art=1&prt=4&excel=2010",        # Without language parameter
+                ]
+                
+                for test_url in test_excel_urls:
+                    try:
+                        test_response = self.session.get(test_url)
+                        if test_response.status_code == 200:
+                            # Check if it's actually an Excel file
+                            content_type = test_response.headers.get('content-type', '').lower()
+                            if ('excel' in content_type or 'spreadsheet' in content_type or 
+                                test_response.content.startswith(b'PK')):  # Excel files start with PK
+                                excel_url = test_url
+                                logger.info(f"   ✅ Found working Excel URL for {tournament_id}: {excel_url}")
+                                break
+                    except:
+                        continue
+            
+            if not excel_url:
+                logger.warning(f"   ❌ Could not find valid Excel export URL for {tournament_id}")
+                return None
+            
+            # Download the Excel file
+            logger.info(f"   📥 Downloading Excel file for {tournament_id}...")
+            excel_response = self.session.get(excel_url)
+            excel_response.raise_for_status()
+            
+            # Verify it's actually an Excel file
+            content_type = excel_response.headers.get('content-type', '').lower()
+            if not ('excel' in content_type or 'spreadsheet' in content_type or 
+                    excel_response.content.startswith(b'PK')):
+                logger.warning(f"   ❌ Downloaded file is not Excel format for {tournament_id} (Content-Type: {content_type})")
+                # Check if it's HTML (common error case)
+                if excel_response.content.startswith(b'<!DOCTYPE') or b'<html' in excel_response.content[:100]:
+                    logger.warning(f"   ⚠️  Downloaded file appears to be HTML for {tournament_id}, Excel export may not be available")
+                return None
+            
+            # Save to temporary file
+            filename = f"team_composition_{tournament_id}.xlsx"
+            filepath = os.path.join('/tmp', filename)
+            
+            with open(filepath, 'wb') as f:
+                f.write(excel_response.content)
+            
+            logger.info(f"   ✅ Downloaded Excel file for {tournament_id}: {filepath}")
+            return filepath
+            
+        except Exception as e:
+            logger.error(f"   ❌ Error downloading team composition Excel for {tournament_id}: {e}")
+            return None
 
 
 def run_crawler():
