@@ -36,6 +36,9 @@ KEY_TRANSLATIONS = {
 def calculate_player_tournament_stats(player_id):
     """Calculate tournament statistics for a given player."""
     
+    # Tournament stats:
+    # Total points in last 360 days / Total games played in last 360 days
+
     # Calculate date 360 days ago
     cutoff_date = datetime.now().date() - timedelta(days=360)
     

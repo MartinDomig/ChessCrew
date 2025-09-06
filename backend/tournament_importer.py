@@ -302,7 +302,7 @@ def parse_team_players(df, tournament):
 
     print(f"Total players imported: {len(ranked_players)}")
     print(f"Total games created: {len(games_to_create)}")
-    return ranked_players, [], {}  # Return empty round_columns and rank_dict for team tournaments
+    return ranked_players, [], {}, len(games_to_create)  # Return games count for team tournaments
 
 
 def parse_players(df, header, header_row_idx, tournament, result_format):
@@ -480,7 +480,7 @@ def parse_players(df, header, header_row_idx, tournament, result_format):
         raise ValueError('No valid player data found')
 
     rank_dict = {tp.ranking: tp for tp in ranked_players}
-    return ranked_players, round_columns, rank_dict
+    return ranked_players, round_columns, rank_dict, 0  # 0 games for non-team tournaments (parsed separately)
 
 
 def parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format, rank_dict):
@@ -890,13 +890,17 @@ def import_tournament_from_excel(file_path, tournament_name=None, location=None,
         db.session.flush()
 
         # Parse players and games
-        ranked_players, round_columns, rank_dict = parse_players(df, header, header_row_idx, tournament, result_format)
+        ranked_players, round_columns, rank_dict, team_games_count = parse_players(df, header, header_row_idx, tournament, result_format)
         db.session.flush()
         
         for p in ranked_players:
             print(f"Ranked Player: {p.ranking} - {p.name} (ID: {p.player_id})")
 
-        imported_games = parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format, rank_dict)
+        # For team tournaments, games are already created in parse_team_players
+        if result_format == 'team':
+            imported_games = team_games_count
+        else:
+            imported_games = parse_games(df, header, header_row_idx, round_columns, ranked_players, tournament, result_format, rank_dict)
 
         # Special handling for Best of 3 matches (2 players, 0 games from normal parsing)
         if len(ranked_players) == 2 and imported_games == 0:
