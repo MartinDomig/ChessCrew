@@ -5,6 +5,8 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
 import PeopleIcon from '@mui/icons-material/People';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SortByAlphaIcon from '@mui/icons-material/SortByAlpha';
+import SortIcon from '@mui/icons-material/Sort';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -75,7 +77,7 @@ function useNavigationStack(initialStack = []) {
 }
 
 // Navigation renderer component
-function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading }) {
+function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading, sortBy, setSortBy }) {
   if (!navObject) return null;
 
   const { type, data } = navObject;
@@ -123,6 +125,19 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
                 sx={{ p: 0.5 }}
               >
                 <EmailIcon fontSize="small" />
+              </IconButton>
+              <IconButton
+                color="primary"
+                onClick={() => setSortBy(sortBy === 'name' ? 'elo' : 'name')}
+                size="small"
+                title={`Sort by ${sortBy === 'name' ? 'ELO' : 'Name'}`}
+                sx={{ p: 0.5 }}
+              >
+                {sortBy === 'name' ? (
+                  <SortByAlphaIcon fontSize="small" />
+                ) : (
+                  <SortIcon fontSize="small" />
+                )}
               </IconButton>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
                 <FilterListIcon fontSize="small" color="action" />
@@ -246,7 +261,7 @@ function MainWindowContent({user}) {
   const handleImportClick = () => setImportOpen(true);
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
-  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading} = usePlayerList();
+  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading, sortBy, setSortBy} = usePlayerList();
   const {tournaments, reloadTournaments, hasStaleData: hasStaleTournamentData} = useTournamentList();
 
   // Initialize navigation stack with player list
@@ -424,6 +439,8 @@ function MainWindowContent({user}) {
                 reloadPlayers={reloadPlayers}
                 reloadTournaments={reloadTournaments}
                 playersLoading={playersLoading}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
               />
             </Box>
 
@@ -465,6 +482,8 @@ function MainWindowContent({user}) {
             reloadPlayers={reloadPlayers}
             reloadTournaments={reloadTournaments}
             playersLoading={playersLoading}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
           />
         )}
       </Box>

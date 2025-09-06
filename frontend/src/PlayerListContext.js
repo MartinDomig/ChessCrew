@@ -14,6 +14,7 @@ const ACTIONS = {
   SET_SEARCH_TAGS: 'SET_SEARCH_TAGS',
   SET_INPUT_VALUE: 'SET_INPUT_VALUE',
   SET_HAS_STALE_DATA: 'SET_HAS_STALE_DATA',
+  SET_SORT_BY: 'SET_SORT_BY',
 };
 
 // Initial state
@@ -25,6 +26,7 @@ const initialState = {
   searchTags: [],
   inputValue: '',
   hasStaleData: false,
+  sortBy: 'name', // 'name' or 'elo'
 };
 
 // Reducer function
@@ -57,6 +59,8 @@ function playerListReducer(state, action) {
       return { ...state, inputValue: action.payload };
     case ACTIONS.SET_HAS_STALE_DATA:
       return { ...state, hasStaleData: action.payload };
+    case ACTIONS.SET_SORT_BY:
+      return { ...state, sortBy: action.payload };
     default:
       return state;
   }
@@ -188,6 +192,10 @@ export function PlayerListProvider({ children }) {
     }
   };
 
+  const setSortBy = (sortBy) => {
+    dispatch({ type: ACTIONS.SET_SORT_BY, payload: sortBy });
+  };
+
   // Debounce input value for search
   const [debouncedInput, setDebouncedInput] = React.useState("");
 
@@ -224,7 +232,7 @@ export function PlayerListProvider({ children }) {
     const currentDebouncedInput = debouncedInput || '';
     const stringTerms = currentDebouncedInput.split(/\s+/).filter(Boolean);
     
-    return playersArray.filter(player => {
+    let filtered = playersArray.filter(player => {
       // AND logic for tags: player must have all selected tags
       if (searchTagsArray.length > 0) {
         const playerTagNames = (player.tags || []).map(t => t.name);
@@ -238,7 +246,26 @@ export function PlayerListProvider({ children }) {
       const pnr = String(player.p_number);
       return stringTerms.length === 0 || stringTerms.some(term => name.includes(term.toLowerCase()) || kat.includes(term.toLowerCase()) || pnr.startsWith(term.toLowerCase()));
     });
-  }, [state.players, state.searchTags, debouncedInput]);
+
+    // Sort the filtered results
+    filtered.sort((a, b) => {
+      if (state.sortBy === 'elo') {
+        // Sort by ELO descending (highest first)
+        const eloA = a.elo || 0;
+        const eloB = b.elo || 0;
+        if (eloA !== eloB) {
+          return eloB - eloA;
+        }
+      }
+      
+      // Default: sort by name alphabetically
+      const nameA = `${a.last_name}, ${a.first_name}`.toLowerCase();
+      const nameB = `${b.last_name}, ${b.first_name}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    return filtered;
+  }, [state.players, state.searchTags, debouncedInput, state.sortBy]);
 
   useEffect(() => {
     reloadPlayers();
@@ -255,6 +282,7 @@ export function PlayerListProvider({ children }) {
     searchTags: Array.isArray(state.searchTags) ? state.searchTags : [],
     inputValue: typeof state.inputValue === 'string' ? state.inputValue : '',
     hasStaleData: state.hasStaleData,
+    sortBy: state.sortBy,
     
     // Actions
     reloadPlayers,
@@ -264,6 +292,7 @@ export function PlayerListProvider({ children }) {
     setScrollOffset,
     setSearchTags,
     setInputValue,
+    setSortBy,
   };
 
   return (
