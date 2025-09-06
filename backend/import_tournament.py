@@ -48,7 +48,7 @@ def extract_tournament_id(url_or_id):
 
 def is_team_tournament(crawler, tournament_url, tournament_id):
     """
-    Auto-detect if tournament is a team tournament by checking for team composition links
+    Auto-detect if tournament is a team tournament by checking the tournament title and content.
     """
     try:
         logger.info(f"🔍 Auto-detecting tournament type for {tournament_id}...")
@@ -59,51 +59,52 @@ def is_team_tournament(crawler, tournament_url, tournament_id):
             logger.warning(f"Could not access tournament page: {response.status_code}")
             return False
             
-        # Look for team-related keywords and links
-        page_content = response.text.lower()
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Check for team composition or team-related links
+        # Check tournament title and page content for team indicators
+        page_text = soup.get_text().lower()
+        title = soup.title.string.lower() if soup.title else ""
+        
+        # Strong team tournament indicators
         team_indicators = [
-            'team composition',
-            'teamzusammensetzung', 
-            'team-composition',
-            'mannschaft',
-            'team captain',
-            'captain:',
+            'mannschaftsmeisterschaft',
+            'mannschaftswettbewerb', 
+            'team championship',
+            'team competition',
+            'liga',  # Often indicates team leagues
+            'teamturnier'
         ]
         
-        # More specific team-related URL patterns
-        team_url_patterns = [
-            r'tnr\d+\.aspx.*art=1[^0-9]',  # Team composition with art=1 (not art=10, art=11, etc.)
-            r'tnr\d+\.aspx.*art=20',       # Team results with round results
-            r'teamcomposition',
-            r'team.*composition'
-        ]
-        
-        team_score = 0
+        # Check title first (most reliable)
         for indicator in team_indicators:
-            if indicator in page_content:
-                team_score += 1
-                logger.debug(f"Found team indicator: {indicator}")
+            if indicator in title:
+                logger.info(f"✅ Team tournament detected for {tournament_id} - found '{indicator}' in title")
+                return True
         
-        # Check for team-specific URL patterns
-        import re
-        for pattern in team_url_patterns:
-            if re.search(pattern, page_content):
-                team_score += 2  # URL patterns are stronger indicators
-                logger.debug(f"Found team URL pattern: {pattern}")
+        # Check page content
+        for indicator in team_indicators:
+            if indicator in page_text:
+                logger.info(f"✅ Team tournament detected for {tournament_id} - found '{indicator}' in content")
+                return True
         
-        # Also check if we can find team composition navigation specifically
-        # Look for links that actually go to team composition (not just any art=1)
-        if re.search(r'tnr\d+\.aspx.*art=1[^0-9]', page_content) or 'team composition' in page_content:
-            logger.info(f"✅ Team tournament detected (score: {team_score}/7)")
-            return True
-        elif team_score >= 2:
-            logger.info(f"✅ Team tournament likely detected (score: {team_score}/7)")
-            return True
-        else:
-            logger.info(f"❌ Individual tournament detected (score: {team_score}/7)")
-            return False
+        # Look for team composition links as additional confirmation
+        team_composition_keywords = [
+            'teamaufstellung mit einzelergebnissen',
+            'team composition with round results',
+            'teamaufstellung',
+            'team composition'
+        ]
+        
+        links = soup.find_all('a', href=True)
+        for link in links:
+            link_text = link.get_text(strip=True).lower()
+            if any(keyword in link_text for keyword in team_composition_keywords):
+                logger.info(f"✅ Team tournament detected for {tournament_id} - found team composition link")
+                return True
+        
+        logger.info(f"❌ Individual tournament detected for {tournament_id}")
+        return False
             
     except Exception as e:
         logger.warning(f"Error detecting tournament type: {e}")
