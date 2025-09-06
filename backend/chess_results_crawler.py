@@ -324,7 +324,7 @@ class ChessResultsCrawler:
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Check if we need to submit the "Show tournament details" form (anti-crawling measure)
+            # Step 1: Check if we need to submit the "Show tournament details" form (anti-crawling measure)
             details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'})
             if details_button:
                 logger.info(f"Found 'Show tournament details' button for tournament {tournament_id}, submitting form...")
@@ -350,41 +350,195 @@ class ChessResultsCrawler:
                     soup = BeautifulSoup(response.content, 'html.parser')
                     logger.info(f"Successfully submitted tournament details form for {tournament_id}")
             
-            # Look for "Elorechnung" section
-            elo_section = soup.find(string=re.compile(r'Elorechnung', re.IGNORECASE))
-            if elo_section:
-                # Find the parent element and check if it contains "-"
-                parent = elo_section.parent
-                if parent and "-" in parent.get_text():
-                    logger.info(f"Skipping tournament {tournament_id} - no ELO calculation")
-                    return None
+            # Step 2: After clicking "Show tournament details", look for tournament content directly on this page
+            # Look for final ranking crosstable link or Excel export directly
+            final_table_link = None
+            crosstable_patterns = [
+                r'final.*ranking.*crosstable',
+                r'crosstable.*final',
+                r'endtabelle.*runden',
+                r'kreuztabelle',
+                r'final.*table',
+                r'end.*table',
+                r'tabelle',
+                r'table'
+            ]
             
-            # Look for final table link first (this should have the round results)
-            final_table_link = soup.find('a', string=re.compile(r'Endtabelle.*runden', re.IGNORECASE))
-            if not final_table_link:
-                # Try alternative patterns
-                final_table_link = soup.find('a', href=re.compile(r'tnr.*table', re.IGNORECASE))
-                
-            # If still no final table link, try looking for links containing "tabelle" or "final"
-            if not final_table_link:
-                final_table_link = soup.find('a', string=re.compile(r'tabelle|final', re.IGNORECASE))
+            # Try to find crosstable link
+            logger.info(f"Looking for tournament table links on page for tournament {tournament_id}")
+            all_links = soup.find_all('a', href=True)
             
+            for pattern in crosstable_patterns:
+                final_table_link = soup.find('a', string=re.compile(pattern, re.IGNORECASE))
+                if final_table_link:
+                    logger.info(f"Found final ranking crosstable link using pattern: {pattern}")
+                    break
+            
+            # If no specific crosstable link found, look for any tournament-related links
+            if not final_table_link:
+                for link in all_links:
+                    href = link.get('href', '')
+                    text = link.get_text().strip()
+                    
+                    # Look for links that contain the tournament ID and table-related terms
+                    if (f'tnr{tournament_id}' in href or tournament_id in href) and \
+                       any(term in href.lower() or term in text.lower() 
+                           for term in ['table', 'tabelle', 'ranking', 'result', 'ergebnis']):
+                        final_table_link = link
+                        logger.info(f"Found tournament table link: {text} -> {href}")
+                        break
+            
+            # If still no table link, look for Excel export directly
+            if not final_table_link:
+                for link in all_links:
+                    href = link.get('href', '')
+                    text = link.get_text().strip()
+                    
+                    # Look for Excel export links
+                    if 'excel' in href.lower() or 'excel' in text.lower():
+                        logger.info(f"Found direct Excel export link: {text} -> {href}")
+                        excel_url = href if href.startswith('http') else urljoin(self.base_url, href)
+                        
+                        return {
+                            'excel_url': excel_url,
+                            'tournament_id': tournament_id,
+                            'name': f'Tournament {tournament_id}',
+                            'has_elo_calculation': False  # We'll check this after getting to the table page
+                        }
+            
+            # Step 3: If we found a crosstable link, follow it
             if final_table_link:
-                final_table_url = final_table_link.get('href')
+                final_table_href = final_table_link.get('href')
+                
                 # Handle both relative and absolute URLs
-                if final_table_url.startswith('http'):
-                    # Absolute URL, use as is
-                    pass
+                if final_table_href.startswith('http'):
+                    final_table_url = final_table_href
                 else:
-                    # Relative URL, join with base URL
-                    final_table_url = urljoin(self.base_url, final_table_url)
+                    final_table_url = urljoin(self.base_url, final_table_href)
+                
+                logger.info(f"Following final ranking crosstable link: {final_table_url}")
+                
+                # Navigate to final table page
+                response = self.session.get(final_table_url)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Step 4: Check for "Show tournament details" button one more time
+                details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'}) or \
+                                soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
+                if details_button:
+                    logger.info(f"Found 'Show tournament details' button on final table page for tournament {tournament_id}, submitting form...")
+                    
+                    # Get form data for submission
+                    form = details_button.find_parent('form')
+                    if form:
+                        # Get form action
+                        action = form.get('action', '')
+                        if not action.startswith('http'):
+                            action = urljoin(final_table_url, action)
+                        
+                        form_data = {}
+                        
+                        # Get all hidden inputs
+                        for hidden_input in form.find_all('input', type='hidden'):
+                            name = hidden_input.get('name')
+                            value = hidden_input.get('value', '')
+                            if name:
+                                form_data[name] = value
+                        
+                        # Add the button click
+                        button_name = details_button.get('name', 'cb_alleDetails')
+                        button_value = details_button.get('value', 'Show tournament details')
+                        form_data[button_name] = button_value
+                        
+                        # Submit the form
+                        response = self.session.post(action, data=form_data)
+                        response.raise_for_status()
+                        soup = BeautifulSoup(response.content, 'html.parser')
+                        logger.info(f"Successfully submitted tournament details form on final table page for {tournament_id}")
+                        final_table_url = response.url  # Update URL in case of redirect
+                
+                # Now check for ELO calculation on the table page
+                elo_section = soup.find(string=re.compile(r'Elorechnung|Rating calculation', re.IGNORECASE))
+                has_elo_calculation = False
+                if elo_section:
+                    # Find the parent element and check if it contains "-" (indicating no calculation)
+                    parent = elo_section.parent
+                    if parent:
+                        parent_text = parent.get_text().strip()
+                        logger.info(f"Found ELO section for tournament {tournament_id}: {parent_text}")
+                        # If it contains "-" or "no" or "nein", there's no ELO calculation
+                        if not any(indicator in parent_text.lower() for indicator in ['-', 'no', 'nein', 'none']):
+                            has_elo_calculation = True
+                            logger.info(f"Tournament {tournament_id} has ELO calculation")
+                        else:
+                            logger.info(f"Tournament {tournament_id} has no ELO calculation (found: {parent_text})")
+                else:
+                    logger.info(f"No ELO section found for tournament {tournament_id}, assuming no ELO calculation")
+                
+                # Extract tournament name from the page
+                tournament_name = None
+                title_elements = soup.find_all(['h1', 'h2', 'title'])
+                for elem in title_elements:
+                    text = elem.get_text().strip()
+                    if text and 'chess-results' not in text.lower():
+                        tournament_name = text
+                        break
                 
                 return {
                     'final_table_url': final_table_url,
-                    'tournament_id': tournament_id
+                    'tournament_id': tournament_id,
+                    'name': tournament_name or f'Tournament {tournament_id}',
+                    'url': final_table_url,
+                    'has_elo_calculation': has_elo_calculation
                 }
             
-            # Fallback: look for Excel export link directly on the tournament details page
+            # If no table links found, try to construct URLs manually
+            logger.info(f"No table links found, trying to construct URLs for tournament {tournament_id}")
+            
+            # Try common URL patterns for chess-results.com
+            base_tournament_url = f"https://chess-results.com/tnr{tournament_id}.aspx"
+            table_url_patterns = [
+                f"{base_tournament_url}?lan=1&art=4&turdet=YES",  # Final ranking with details
+                f"{base_tournament_url}?lan=1&art=1&turdet=YES",  # Starting list with details
+                f"{base_tournament_url}?lan=1&art=2&turdet=YES"   # Pairings with details
+            ]
+            
+            for pattern_url in table_url_patterns:
+                try:
+                    logger.info(f"Trying constructed URL: {pattern_url}")
+                    response = self.session.get(pattern_url)
+                    response.raise_for_status()
+                    
+                    # Check if this page has tournament data (look for player tables)
+                    soup_test = BeautifulSoup(response.content, 'html.parser')
+                    if soup_test.find('table') or soup_test.find(string=re.compile(r'Rang|Rank|Name', re.IGNORECASE)):
+                        logger.info(f"Found tournament data at constructed URL: {pattern_url}")
+                        
+                        # Check for ELO calculation on this page
+                        elo_section = soup_test.find(string=re.compile(r'Elorechnung|Rating calculation', re.IGNORECASE))
+                        has_elo_calculation = False
+                        if elo_section:
+                            parent = elo_section.parent
+                            if parent:
+                                parent_text = parent.get_text().strip()
+                                logger.info(f"Found ELO section for tournament {tournament_id}: {parent_text}")
+                                if not any(indicator in parent_text.lower() for indicator in ['-', 'no', 'nein', 'none']):
+                                    has_elo_calculation = True
+                                    logger.info(f"Tournament {tournament_id} has ELO calculation")
+                        
+                        return {
+                            'final_table_url': pattern_url,
+                            'tournament_id': tournament_id,
+                            'name': f'Tournament {tournament_id}',
+                            'url': pattern_url,
+                            'has_elo_calculation': has_elo_calculation
+                        }
+                except Exception as e:
+                    logger.info(f"Constructed URL failed: {pattern_url} - {e}")
+                    continue
+            
+            # Fallback: look for Excel export link directly on the current page
             excel_export_link = soup.find('a', string=re.compile(r'Export to Excel', re.IGNORECASE))
             if excel_export_link:
                 excel_url = excel_export_link.get('href')
@@ -398,7 +552,9 @@ class ChessResultsCrawler:
                 
                 return {
                     'excel_url': excel_url,
-                    'tournament_id': tournament_id
+                    'tournament_id': tournament_id,
+                    'name': f'Tournament {tournament_id}',
+                    'has_elo_calculation': False  # Default for fallback case
                 }
             else:
                 logger.warning(f"Could not find Excel export or final table link for tournament {tournament_id}")

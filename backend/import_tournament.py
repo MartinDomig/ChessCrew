@@ -79,11 +79,7 @@ def import_single_tournament(tournament_id):
                 logger.error("Failed to login to chess-results.com")
                 return {'success': False, 'error': 'Failed to login to chess-results.com'}
             
-            # Step 3: Check if tournament has ELO calculation
-            if not crawler.check_elo_calculation(tournament_url, tournament_id):
-                logger.warning(f"Tournament {tournament_id} has no ELO calculation - importing anyway")
-            
-            # Step 4: Get tournament details
+            # Step 3: Get tournament details (this now includes ELO check)
             tournament_details = crawler.get_tournament_details(tournament_url, tournament_id)
             if not tournament_details:
                 logger.error(f"Could not get details for tournament {tournament_id}")
@@ -92,7 +88,7 @@ def import_single_tournament(tournament_id):
             tournament_name = tournament_details.get('name', f'Tournament {tournament_id}')
             logger.info(f"Tournament name: {tournament_name}")
             
-            # Step 5: Download Excel export
+            # Step 4: Download Excel export
             excel_file = crawler.download_excel_export(tournament_details)
             if not excel_file:
                 logger.error(f"Could not download Excel file for tournament {tournament_id}")
@@ -100,7 +96,7 @@ def import_single_tournament(tournament_id):
             
             logger.info(f"Downloaded Excel file: {excel_file}")
             
-            # Step 6: Import tournament using the tournament_importer module
+            # Step 5: Import tournament using the tournament_importer module
             try:
                 result = crawler.import_tournament_from_excel_file(excel_file, tournament_name, tournament_id)
                 
