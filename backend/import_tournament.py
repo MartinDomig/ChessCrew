@@ -70,7 +70,14 @@ def is_team_tournament(crawler, tournament_url, tournament_id):
             'mannschaft',
             'team captain',
             'captain:',
-            'art=1',  # Team composition URL parameter
+        ]
+        
+        # More specific team-related URL patterns
+        team_url_patterns = [
+            r'tnr\d+\.aspx.*art=1[^0-9]',  # Team composition with art=1 (not art=10, art=11, etc.)
+            r'tnr\d+\.aspx.*art=20',       # Team results with round results
+            r'teamcomposition',
+            r'team.*composition'
         ]
         
         team_score = 0
@@ -79,8 +86,16 @@ def is_team_tournament(crawler, tournament_url, tournament_id):
                 team_score += 1
                 logger.debug(f"Found team indicator: {indicator}")
         
-        # Also check if we can find team composition navigation
-        if 'team composition' in page_content or 'art=1' in page_content:
+        # Check for team-specific URL patterns
+        import re
+        for pattern in team_url_patterns:
+            if re.search(pattern, page_content):
+                team_score += 2  # URL patterns are stronger indicators
+                logger.debug(f"Found team URL pattern: {pattern}")
+        
+        # Also check if we can find team composition navigation specifically
+        # Look for links that actually go to team composition (not just any art=1)
+        if re.search(r'tnr\d+\.aspx.*art=1[^0-9]', page_content) or 'team composition' in page_content:
             logger.info(f"✅ Team tournament detected (score: {team_score}/7)")
             return True
         elif team_score >= 2:
@@ -176,10 +191,6 @@ def import_single_tournament(tournament_id, force=False):
 def import_team_tournament(tournament_id, force=False):
     """Import a team tournament using team composition with individual games"""
     try:
-        # Import the team tournament functions from the test file
-        sys.path.append('/home/martin/chesscrew/backend/tests')
-        from test_team_tournament_benjamin_hoefel import get_team_composition_url, download_team_composition_excel
-        
         from app import create_app
         from chess_results_crawler import ChessResultsCrawler
         from db.models import Tournament, TournamentPlayer, Game, db
@@ -229,7 +240,7 @@ def import_team_tournament(tournament_id, force=False):
             
             # Step 4: Navigate to team composition page
             logger.info("🔍 Looking for team composition with round-results...")
-            team_composition_url = get_team_composition_url(crawler, tournament_url, tournament_id)
+            team_composition_url = crawler.get_team_composition_url(tournament_url, tournament_id)
             
             if not team_composition_url:
                 logger.error("❌ Could not find team composition with round-results page!")
@@ -239,7 +250,7 @@ def import_team_tournament(tournament_id, force=False):
             
             # Step 5: Download Excel export from team composition page
             logger.info("📊 Downloading team composition Excel export...")
-            excel_file = download_team_composition_excel(crawler, team_composition_url, tournament_id)
+            excel_file = crawler.download_team_composition_excel(team_composition_url, tournament_id)
             
             if not excel_file:
                 logger.error("❌ Failed to download team composition Excel!")
