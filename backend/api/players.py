@@ -126,11 +126,22 @@ def list_players():
     # Get all tournament players for active players in one query
     player_ids = [p.id for p in players]
     if player_ids:
-        tournament_stats_query = db.session.query(
+        # Calculate points separately (no join to games to avoid duplication)
+        points_query = db.session.query(
             TournamentPlayer.player_id,
-            db.func.sum(db.func.coalesce(TournamentPlayer.points, 0)).label('total_points'),
+            db.func.sum(db.func.coalesce(TournamentPlayer.points, 0)).label('total_points')
+        ).join(
+            Tournament, TournamentPlayer.tournament_id == Tournament.id
+        ).filter(
+            TournamentPlayer.player_id.in_(player_ids),
+            Tournament.date >= cutoff_date
+        ).group_by(TournamentPlayer.player_id).all()
+        
+        # Calculate games count
+        games_query = db.session.query(
+            TournamentPlayer.player_id,
             db.func.count(Game.id).label('total_games')
-        ).outerjoin(
+        ).select_from(TournamentPlayer).outerjoin(
             Tournament, TournamentPlayer.tournament_id == Tournament.id
         ).outerjoin(
             Game, db.and_(
@@ -143,10 +154,15 @@ def list_players():
         ).group_by(TournamentPlayer.player_id).all()
         
         # Convert to dict for easy lookup
-        tournament_stats = {stat.player_id: {
-            'total_points': stat.total_points or 0,
-            'total_games': stat.total_games or 0
-        } for stat in tournament_stats_query}
+        points_dict = {stat.player_id: stat.total_points or 0 for stat in points_query}
+        games_dict = {stat.player_id: stat.total_games or 0 for stat in games_query}
+        
+        tournament_stats = {}
+        for player_id in player_ids:
+            tournament_stats[player_id] = {
+                'total_points': points_dict.get(player_id, 0),
+                'total_games': games_dict.get(player_id, 0)
+            }
     else:
         tournament_stats = {}
     
@@ -195,12 +211,23 @@ def get_player(player_id):
     if not player:
         return jsonify({'error': 'Player not found'}), 404
     
-    # Calculate tournament stats using optimized batch query
+    # Calculate tournament stats using separate queries to avoid duplication
     cutoff_date = datetime.now().date() - timedelta(days=360)
-    tournament_stats_query = db.session.query(
-        db.func.sum(db.func.coalesce(TournamentPlayer.points, 0)).label('total_points'),
+    
+    # Calculate points
+    points_query = db.session.query(
+        db.func.sum(db.func.coalesce(TournamentPlayer.points, 0)).label('total_points')
+    ).join(
+        Tournament, TournamentPlayer.tournament_id == Tournament.id
+    ).filter(
+        TournamentPlayer.player_id == player_id,
+        Tournament.date >= cutoff_date
+    ).first()
+    
+    # Calculate games
+    games_query = db.session.query(
         db.func.count(Game.id).label('total_games')
-    ).outerjoin(
+    ).select_from(TournamentPlayer).outerjoin(
         Tournament, TournamentPlayer.tournament_id == Tournament.id
     ).outerjoin(
         Game, db.and_(
@@ -213,8 +240,8 @@ def get_player(player_id):
     ).first()
     
     tournament_stats = {
-        'total_points': tournament_stats_query.total_points or 0,
-        'total_games': tournament_stats_query.total_games or 0
+        'total_points': points_query.total_points or 0,
+        'total_games': games_query.total_games or 0
     }
     
     return jsonify({
