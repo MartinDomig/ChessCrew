@@ -4,6 +4,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
 import PeopleIcon from '@mui/icons-material/People';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -186,6 +187,15 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
             borderBottom: '1px solid #eee',
             alignItems: 'center'
           }}>
+            <IconButton
+              color="primary"
+              onClick={reloadTournaments}
+              size="small"
+              title="Turniere neu laden"
+              sx={{ p: 0.5 }}
+            >
+              <RefreshIcon fontSize="small" />
+            </IconButton>
           </Box>
           <TournamentList
             tournaments={tournaments}
