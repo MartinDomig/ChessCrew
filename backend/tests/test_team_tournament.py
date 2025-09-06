@@ -1,9 +1,14 @@
 import os
 import sys
 import tempfile
+
+# Add backend to path
+sys.path.append('/home/martin/chesscrew/backend')
+
 from chess_results_crawler import ChessResultsCrawler
 from tournament_importer import import_tournament_from_excel
 from db.models import db, Tournament, TournamentPlayer, Player
+from app import create_app
 
 def test_team_tournament():
     print("🔍 Testing Team Tournament (Individual Players Only)...")
@@ -12,7 +17,6 @@ def test_team_tournament():
     print()
     
     # Set up database connection
-    from app import create_app
     app = create_app()
     with app.app_context():
         # Clean up any existing data for this tournament

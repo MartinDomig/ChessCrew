@@ -300,7 +300,7 @@ def parse_team_players(df, tournament):
             tournament_id=tournament.id,
             player_id=tp.id,
             round_number=game_data['round_number'],
-            player_color="white",  # Default, unknown in team tournaments  
+            player_color=None,  # No color info available in team tournaments  
             opponent_id=None,  # No opponent info in team tournaments
             result=game_data['result']
         )
