@@ -355,13 +355,23 @@ class ChessResultsCrawler:
             title_tag = soup.find('title')
             if title_tag:
                 title_text = title_tag.get_text().strip()
-                # Remove "chess-results.com" and clean up
-                if 'chess-results.com' in title_text:
-                    title_parts = title_text.split('chess-results.com')
-                    if len(title_parts) > 1:
-                        metadata['name'] = title_parts[0].strip(' -|')
-                    elif len(title_parts) == 1:
-                        metadata['name'] = title_parts[0].strip(' -|')
+                # Remove "chess-results.com" prefix and clean up
+                if 'chess-results.com' in title_text.lower():
+                    # Find the actual tournament name after chess-results.com
+                    # Pattern: "Chess-Results Server Chess-results.com - TOURNAMENT NAME"
+                    parts = title_text.split(' - ')
+                    if len(parts) >= 2:
+                        # Take everything after the first " - " following chess-results.com
+                        for i, part in enumerate(parts):
+                            if 'chess-results.com' in part.lower() and i + 1 < len(parts):
+                                # Join all remaining parts as the tournament name
+                                metadata['name'] = ' - '.join(parts[i + 1:]).strip()
+                                break
+                    if not metadata['name']:
+                        # Fallback: try splitting on chess-results.com and take the latter part
+                        title_parts = title_text.split('chess-results.com')
+                        if len(title_parts) > 1:
+                            metadata['name'] = title_parts[1].strip(' -|')
                 else:
                     metadata['name'] = title_text
                 logger.info(f"Found tournament name from title: {metadata['name']}")
