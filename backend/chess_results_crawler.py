@@ -316,6 +316,208 @@ class ChessResultsCrawler:
             logger.debug(f"Error extracting tournament ID from {href}: {e}")
             return None
 
+    def _parse_tournament_metadata(self, soup, tournament_id):
+        """Parse tournament metadata like elo rating, date, location, type, time control"""
+        metadata = {
+            'name': None,
+            'elo_rating': None,
+            'date': None,
+            'location': None,
+            'tournament_type': None,
+            'time_control': None,
+            'has_elo_calculation': False
+        }
+        
+        try:
+            # Get all text content for parsing
+            page_text = soup.get_text()
+            
+            # Parse ELO rating/calculation
+            elo_section = soup.find(string=re.compile(r'Elorechnung|Rating calculation|Elo', re.IGNORECASE))
+            if elo_section:
+                parent = elo_section.parent
+                if parent:
+                    parent_text = parent.get_text().strip()
+                    logger.info(f"Found ELO section for tournament {tournament_id}: {parent_text}")
+                    # If it contains "-" or "no" or "nein", there's no ELO calculation
+                    if not any(indicator in parent_text.lower() for indicator in ['-', 'no', 'nein', 'none']):
+                        metadata['has_elo_calculation'] = True
+                        # Try to extract specific ELO rating if available
+                        elo_match = re.search(r'(\d{3,4})', parent_text)
+                        if elo_match:
+                            metadata['elo_rating'] = int(elo_match.group(1))
+                        logger.info(f"Tournament {tournament_id} has ELO calculation")
+                    else:
+                        logger.info(f"Tournament {tournament_id} has no ELO calculation (found: {parent_text})")
+            
+            # Parse tournament name
+            # Method 1: Look for tournament title in page title
+            title_tag = soup.find('title')
+            if title_tag:
+                title_text = title_tag.get_text().strip()
+                # Remove "chess-results.com" and clean up
+                if 'chess-results.com' in title_text:
+                    title_parts = title_text.split('chess-results.com')
+                    if len(title_parts) > 1:
+                        metadata['name'] = title_parts[0].strip(' -|')
+                    elif len(title_parts) == 1:
+                        metadata['name'] = title_parts[0].strip(' -|')
+                else:
+                    metadata['name'] = title_text
+                logger.info(f"Found tournament name from title: {metadata['name']}")
+            
+            # Method 2: Look for tournament name in headers if title didn't work
+            if not metadata['name'] or 'Tournament' in metadata['name']:
+                headers = soup.find_all(['h1', 'h2', 'h3'])
+                for header in headers:
+                    text = header.get_text().strip()
+                    if text and len(text) > 5 and 'chess-results' not in text.lower():
+                        metadata['name'] = text
+                        logger.info(f"Found tournament name from header: {metadata['name']}")
+                        break
+            
+            # Method 3: Look for tournament name in table captions or strong/bold text
+            if not metadata['name'] or 'Tournament' in metadata['name']:
+                # Look in table captions
+                captions = soup.find_all('caption')
+                for caption in captions:
+                    text = caption.get_text().strip()
+                    if text and len(text) > 5 and 'chess-results' not in text.lower():
+                        metadata['name'] = text
+                        logger.info(f"Found tournament name from caption: {metadata['name']}")
+                        break
+                
+                # Look in strong/bold text near the top of the page
+                if not metadata['name'] or 'Tournament' in metadata['name']:
+                    strong_tags = soup.find_all(['strong', 'b'])[:10]  # Check first 10 bold elements
+                    for strong in strong_tags:
+                        text = strong.get_text().strip()
+                        if text and len(text) > 10 and 'chess-results' not in text.lower() and tournament_id not in text:
+                            metadata['name'] = text
+                            logger.info(f"Found tournament name from bold text: {metadata['name']}")
+                            break
+            
+            # Method 4: Look for patterns in the first few rows of text
+            if not metadata['name'] or 'Tournament' in metadata['name']:
+                # Get all text and look for tournament-like patterns
+                lines = [line.strip() for line in soup.get_text().split('\n') if line.strip()]
+                
+                for line in lines[:20]:  # Check first 20 lines
+                    # Skip lines that are too short or contain unwanted content
+                    if (len(line) > 10 and 
+                        'chess-results' not in line.lower() and 
+                        'login' not in line.lower() and
+                        'logout' not in line.lower() and
+                        tournament_id not in line and
+                        not line.isdigit() and
+                        any(word in line.lower() for word in ['meisterschaft', 'championship', 'tournament', 'open', 'cup', 'liga'])):
+                        metadata['name'] = line
+                        logger.info(f"Found tournament name from page text: {metadata['name']}")
+                        break
+            
+            # Clean up the tournament name
+            if metadata['name']:
+                # Remove common unwanted suffixes/prefixes
+                metadata['name'] = re.sub(r'^(Tournament|Turnier)\s*:?\s*', '', metadata['name'], flags=re.IGNORECASE)
+                metadata['name'] = re.sub(r'\s*-\s*chess-results\.com.*$', '', metadata['name'], flags=re.IGNORECASE)
+                metadata['name'] = re.sub(r'^Chess-Results Server\s*', '', metadata['name'], flags=re.IGNORECASE)
+                metadata['name'] = re.sub(r'^chess-results\.com\s*-?\s*', '', metadata['name'], flags=re.IGNORECASE)
+                metadata['name'] = metadata['name'].strip(' -|')
+            
+            # Fallback to ID-based name if nothing found
+            if not metadata['name'] or len(metadata['name']) < 3:
+                metadata['name'] = f'Tournament {tournament_id}'
+            
+            # Parse date - look for date patterns
+            date_patterns = [
+                r'(\d{1,2}[\./]\d{1,2}[\./]\d{4})',  # DD/MM/YYYY or DD.MM.YYYY
+                r'(\d{4}[\-/]\d{1,2}[\-/]\d{1,2})',  # YYYY-MM-DD or YYYY/MM/DD
+                r'(\d{1,2}\.\s*\d{1,2}\.\s*\d{4})',  # DD. MM. YYYY
+                r'(\d{1,2}\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})',  # DD Month YYYY
+                r'((January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'   # Month DD, YYYY
+            ]
+            
+            for pattern in date_patterns:
+                match = re.search(pattern, page_text, re.IGNORECASE)
+                if match:
+                    metadata['date'] = match.group(1)
+                    logger.info(f"Found date for tournament {tournament_id}: {metadata['date']}")
+                    break
+            
+            # Parse location - look for location indicators
+            location_patterns = [
+                r'(?:Location|Ort|Venue|Place):\s*([^\n\r]+)',
+                r'(?:in|@)\s+([A-Z][a-zA-Z\s]+(?:,\s*[A-Z][a-zA-Z\s]*)*)',  # in CityName, Country
+                r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,\s*[A-Z]{2,3})',     # City, Country abbreviation
+            ]
+            
+            for pattern in location_patterns:
+                match = re.search(pattern, page_text)
+                if match:
+                    location = match.group(1).strip()
+                    if len(location) > 2 and len(location) < 100:  # Reasonable location length
+                        metadata['location'] = location
+                        logger.info(f"Found location for tournament {tournament_id}: {metadata['location']}")
+                        break
+            
+            # Parse tournament type - look for type indicators
+            type_patterns = [
+                r'(?:Type|Art|System):\s*([^\n\r]+)',
+                r'\b(Swiss|Round Robin|Knockout|Elimination|Arena|Blitz|Rapid|Classical)\b',
+                r'\b(Schweizer System|Rundturnier|K\.O\.-System)\b'
+            ]
+            
+            for pattern in type_patterns:
+                match = re.search(pattern, page_text, re.IGNORECASE)
+                if match:
+                    tournament_type = match.group(1).strip()
+                    if len(tournament_type) > 2:
+                        metadata['tournament_type'] = tournament_type
+                        logger.info(f"Found tournament type for tournament {tournament_id}: {metadata['tournament_type']}")
+                        break
+            
+            # Parse time control - look for time control patterns
+            time_control_patterns = [
+                r'(?:Time control|Bedenkzeit|Time|Zeit):\s*([^\n\r]+)',
+                r'(\d+\s*min(?:utes?)?(?:\s*\+\s*\d+\s*sec(?:onds?)?)?)',  # 90 min + 30 sec
+                r'(\d+\'\s*\+\s*\d+\'\')',  # 90' + 30''
+                r'(\d{1,2}:\d{2}(?:\s*\+\s*\d+)?)',  # 1:30 + 30
+                r'\b(Blitz|Rapid|Classical|Standard)\b'
+            ]
+            
+            for pattern in time_control_patterns:
+                match = re.search(pattern, page_text, re.IGNORECASE)
+                if match:
+                    time_control = match.group(1).strip()
+                    if len(time_control) > 1:
+                        metadata['time_control'] = time_control
+                        logger.info(f"Found time control for tournament {tournament_id}: {metadata['time_control']}")
+                        break
+                        
+            # Try to find metadata in tables or structured data
+            tables = soup.find_all('table')
+            for table in tables:
+                rows = table.find_all('tr')
+                for row in rows:
+                    cells = row.find_all(['td', 'th'])
+                    if len(cells) >= 2:
+                        key = cells[0].get_text().strip().lower()
+                        value = cells[1].get_text().strip()
+                        
+                        if any(term in key for term in ['date', 'datum']) and not metadata['date']:
+                            metadata['date'] = value
+                        elif any(term in key for term in ['location', 'ort', 'place', 'venue']) and not metadata['location']:
+                            metadata['location'] = value
+                        elif any(term in key for term in ['type', 'art', 'system']) and not metadata['tournament_type']:
+                            metadata['tournament_type'] = value
+                        elif any(term in key for term in ['time', 'zeit', 'control', 'bedenkzeit']) and not metadata['time_control']:
+                            metadata['time_control'] = value
+                            
+        except Exception as e:
+            logger.error(f"Error parsing tournament metadata for {tournament_id}: {e}")
+            
+        return metadata
+
     def get_tournament_details(self, tournament_url, tournament_id):
         """Get tournament details and check if it should be processed"""
         try:
@@ -349,6 +551,87 @@ class ChessResultsCrawler:
                     response.raise_for_status()
                     soup = BeautifulSoup(response.content, 'html.parser')
                     logger.info(f"Successfully submitted tournament details form for {tournament_id}")
+            
+            # Step 2: Look for "Tournament details" link and follow it
+            tournament_details_link = None
+            # Look for various patterns for the tournament details link
+            details_link_patterns = [
+                'tournament details',
+                'turnier details', 
+                'tournament info',
+                'turnier info',
+                'details',
+                'info'
+            ]
+            
+            # Find the tournament details link
+            for pattern in details_link_patterns:
+                link = soup.find('a', string=re.compile(pattern, re.IGNORECASE))
+                if link and link.get('href'):
+                    tournament_details_link = link
+                    break
+            
+            # If found, follow the link
+            if tournament_details_link:
+                details_href = tournament_details_link.get('href')
+                details_url = details_href if details_href.startswith('http') else urljoin(self.base_url, details_href)
+                logger.info(f"Following tournament details link: {details_url}")
+                
+                response = self.session.get(details_url)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Step 3: Check for "Show tournament details" button again on the details page
+                details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'}) or \
+                                soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
+                if details_button:
+                    logger.info(f"Found 'Show tournament details' button on details page for tournament {tournament_id}, submitting form...")
+                    
+                    # Get form data for submission
+                    form = details_button.find_parent('form')
+                    if form:
+                        # Get form action
+                        action = form.get('action', '')
+                        if not action.startswith('http'):
+                            action = urljoin(details_url, action)
+                        
+                        form_data = {}
+                        
+                        # Get all hidden inputs
+                        for hidden_input in form.find_all('input', type='hidden'):
+                            name = hidden_input.get('name')
+                            value = hidden_input.get('value', '')
+                            if name:
+                                form_data[name] = value
+                        
+                        # Add the button click
+                        button_name = details_button.get('name', 'cb_alleDetails')
+                        button_value = details_button.get('value', 'Show tournament details')
+                        form_data[button_name] = button_value
+                        
+                        # Submit the form
+                        response = self.session.post(action, data=form_data)
+                        response.raise_for_status()
+                        soup = BeautifulSoup(response.content, 'html.parser')
+                        logger.info(f"Successfully submitted tournament details form on details page for {tournament_id}")
+                        tournament_url = response.url  # Update URL in case of redirect
+            
+            # Step 4: Parse tournament metadata (elo rating, date, location, type, time control)
+            tournament_metadata = self._parse_tournament_metadata(soup, tournament_id)
+            
+            # Step 5: After metadata parsing, look for tournament content (crosstable/results)
+            # Look for final ranking crosstable link or Excel export directly
+            final_table_link = None
+            crosstable_patterns = [
+                r'final.*ranking.*crosstable',
+                r'crosstable.*final',
+                r'endtabelle.*runden',
+                r'kreuztabelle',
+                r'final.*table',
+                r'end.*table',
+                r'tabelle',
+                r'table'
+            ]
             
             # Step 2: After clicking "Show tournament details", look for tournament content directly on this page
             # Look for final ranking crosstable link or Excel export directly
@@ -403,7 +686,8 @@ class ChessResultsCrawler:
                             'excel_url': excel_url,
                             'tournament_id': tournament_id,
                             'name': f'Tournament {tournament_id}',
-                            'has_elo_calculation': False  # We'll check this after getting to the table page
+                            'has_elo_calculation': tournament_metadata.get('has_elo_calculation', False),
+                            'metadata': tournament_metadata
                         }
             
             # Step 3: If we found a crosstable link, follow it
@@ -457,116 +741,24 @@ class ChessResultsCrawler:
                         soup = BeautifulSoup(response.content, 'html.parser')
                         logger.info(f"Successfully submitted tournament details form on final table page for {tournament_id}")
                         final_table_url = response.url  # Update URL in case of redirect
+                        
+                        # Update metadata from the final table page if we have more details
+                        updated_metadata = self._parse_tournament_metadata(soup, tournament_id)
+                        # Merge with existing metadata, preferring new data
+                        for key, value in updated_metadata.items():
+                            if value and not tournament_metadata.get(key):
+                                tournament_metadata[key] = value
                 
-                # Now check for ELO calculation on the table page
-                elo_section = soup.find(string=re.compile(r'Elorechnung|Rating calculation', re.IGNORECASE))
-                has_elo_calculation = False
-                if elo_section:
-                    # Find the parent element and check if it contains "-" (indicating no calculation)
-                    parent = elo_section.parent
-                    if parent:
-                        parent_text = parent.get_text().strip()
-                        logger.info(f"Found ELO section for tournament {tournament_id}: {parent_text}")
-                        # If it contains "-" or "no" or "nein", there's no ELO calculation
-                        if not any(indicator in parent_text.lower() for indicator in ['-', 'no', 'nein', 'none']):
-                            has_elo_calculation = True
-                            logger.info(f"Tournament {tournament_id} has ELO calculation")
-                        else:
-                            logger.info(f"Tournament {tournament_id} has no ELO calculation (found: {parent_text})")
-                else:
-                    logger.info(f"No ELO section found for tournament {tournament_id}, assuming no ELO calculation")
-                
-                # Extract tournament name from the page
-                tournament_name = None
-                
-                # Method 1: Look for tournament title in specific patterns
-                # Chess-results.com often puts the tournament name in specific places
-                
-                # Try to find it in the page title
-                title_tag = soup.find('title')
-                if title_tag:
-                    title_text = title_tag.get_text().strip()
-                    # Remove "chess-results.com" and clean up
-                    if 'chess-results.com' in title_text:
-                        title_parts = title_text.split('chess-results.com')
-                        if len(title_parts) > 1:
-                            tournament_name = title_parts[0].strip(' -|')
-                        elif len(title_parts) == 1:
-                            tournament_name = title_parts[0].strip(' -|')
-                    else:
-                        tournament_name = title_text
-                    logger.info(f"Found tournament name from title: {tournament_name}")
-                
-                # Method 2: Look for tournament name in headers or specific text patterns
-                if not tournament_name or 'Tournament' in tournament_name:
-                    # Look for h1, h2, h3 headers that might contain the tournament name
-                    headers = soup.find_all(['h1', 'h2', 'h3'])
-                    for header in headers:
-                        text = header.get_text().strip()
-                        if text and len(text) > 5 and 'chess-results' not in text.lower():
-                            tournament_name = text
-                            logger.info(f"Found tournament name from header: {tournament_name}")
-                            break
-                
-                # Method 3: Look for tournament name in table captions or strong/bold text
-                if not tournament_name or 'Tournament' in tournament_name:
-                    # Look in table captions
-                    captions = soup.find_all('caption')
-                    for caption in captions:
-                        text = caption.get_text().strip()
-                        if text and len(text) > 5 and 'chess-results' not in text.lower():
-                            tournament_name = text
-                            logger.info(f"Found tournament name from caption: {tournament_name}")
-                            break
-                    
-                    # Look in strong/bold text near the top of the page
-                    if not tournament_name or 'Tournament' in tournament_name:
-                        strong_tags = soup.find_all(['strong', 'b'])[:10]  # Check first 10 bold elements
-                        for strong in strong_tags:
-                            text = strong.get_text().strip()
-                            if text and len(text) > 10 and 'chess-results' not in text.lower() and tournament_id not in text:
-                                tournament_name = text
-                                logger.info(f"Found tournament name from bold text: {tournament_name}")
-                                break
-                
-                # Method 4: Look for patterns in the first few rows of text
-                if not tournament_name or 'Tournament' in tournament_name:
-                    # Get all text and look for tournament-like patterns
-                    page_text = soup.get_text()
-                    lines = [line.strip() for line in page_text.split('\n') if line.strip()]
-                    
-                    for line in lines[:20]:  # Check first 20 lines
-                        # Skip lines that are too short or contain unwanted content
-                        if (len(line) > 10 and 
-                            'chess-results' not in line.lower() and 
-                            'login' not in line.lower() and
-                            'logout' not in line.lower() and
-                            tournament_id not in line and
-                            not line.isdigit() and
-                            any(word in line.lower() for word in ['meisterschaft', 'championship', 'tournament', 'open', 'cup', 'liga'])):
-                            tournament_name = line
-                            logger.info(f"Found tournament name from page text: {tournament_name}")
-                            break
-                
-                # Clean up the tournament name
-                if tournament_name:
-                    # Remove common unwanted suffixes/prefixes
-                    tournament_name = re.sub(r'^(Tournament|Turnier)\s*:?\s*', '', tournament_name, flags=re.IGNORECASE)
-                    tournament_name = re.sub(r'\s*-\s*chess-results\.com.*$', '', tournament_name, flags=re.IGNORECASE)
-                    tournament_name = re.sub(r'^Chess-Results Server\s*', '', tournament_name, flags=re.IGNORECASE)
-                    tournament_name = re.sub(r'^chess-results\.com\s*-?\s*', '', tournament_name, flags=re.IGNORECASE)
-                    tournament_name = tournament_name.strip(' -|')
-                
-                # Fallback to ID-based name if nothing found
-                if not tournament_name or len(tournament_name) < 3:
-                    tournament_name = f'Tournament {tournament_id}'
+                # Extract tournament name from metadata
+                tournament_name = tournament_metadata.get('name') or f'Tournament {tournament_id}'
                 
                 return {
                     'final_table_url': final_table_url,
                     'tournament_id': tournament_id,
-                    'name': tournament_name or f'Tournament {tournament_id}',
+                    'name': tournament_name,
                     'url': final_table_url,
-                    'has_elo_calculation': has_elo_calculation
+                    'has_elo_calculation': tournament_metadata.get('has_elo_calculation', False),
+                    'metadata': tournament_metadata
                 }
             
             # If no table links found, try to construct URLs manually
@@ -591,63 +783,22 @@ class ChessResultsCrawler:
                     if soup_test.find('table') or soup_test.find(string=re.compile(r'Rang|Rank|Name', re.IGNORECASE)):
                         logger.info(f"Found tournament data at constructed URL: {pattern_url}")
                         
-                        # Extract tournament name from this page
-                        tournament_name = None
+                        # Parse metadata from this page
+                        constructed_metadata = self._parse_tournament_metadata(soup_test, tournament_id)
+                        # Merge with existing metadata, preferring new data
+                        for key, value in constructed_metadata.items():
+                            if value and not tournament_metadata.get(key):
+                                tournament_metadata[key] = value
                         
-                        # Try to find it in the page title
-                        title_tag = soup_test.find('title')
-                        if title_tag:
-                            title_text = title_tag.get_text().strip()
-                            if 'chess-results.com' in title_text:
-                                title_parts = title_text.split('chess-results.com')
-                                if len(title_parts) > 1:
-                                    tournament_name = title_parts[0].strip(' -|')
-                                elif len(title_parts) == 1:
-                                    tournament_name = title_parts[0].strip(' -|')
-                            else:
-                                tournament_name = title_text
-                            logger.info(f"Found tournament name from constructed URL: {tournament_name}")
-                        
-                        # Look in headers if title didn't work
-                        if not tournament_name or 'Tournament' in tournament_name:
-                            headers = soup_test.find_all(['h1', 'h2', 'h3'])
-                            for header in headers:
-                                text = header.get_text().strip()
-                                if text and len(text) > 5 and 'chess-results' not in text.lower():
-                                    tournament_name = text
-                                    logger.info(f"Found tournament name from header in constructed URL: {tournament_name}")
-                                    break
-                        
-                        # Clean up the tournament name
-                        if tournament_name:
-                            # Remove common unwanted prefixes/suffixes
-                            tournament_name = re.sub(r'^(Tournament|Turnier)\s*:?\s*', '', tournament_name, flags=re.IGNORECASE)
-                            tournament_name = re.sub(r'\s*-\s*chess-results\.com.*$', '', tournament_name, flags=re.IGNORECASE)
-                            tournament_name = re.sub(r'^Chess-Results Server\s*', '', tournament_name, flags=re.IGNORECASE)
-                            tournament_name = re.sub(r'^chess-results\.com\s*-?\s*', '', tournament_name, flags=re.IGNORECASE)
-                            tournament_name = tournament_name.strip(' -|')
-                        
-                        if not tournament_name or len(tournament_name) < 3:
-                            tournament_name = f'Tournament {tournament_id}'
-                        
-                        # Check for ELO calculation on this page
-                        elo_section = soup_test.find(string=re.compile(r'Elorechnung|Rating calculation', re.IGNORECASE))
-                        has_elo_calculation = False
-                        if elo_section:
-                            parent = elo_section.parent
-                            if parent:
-                                parent_text = parent.get_text().strip()
-                                logger.info(f"Found ELO section for tournament {tournament_id}: {parent_text}")
-                                if not any(indicator in parent_text.lower() for indicator in ['-', 'no', 'nein', 'none']):
-                                    has_elo_calculation = True
-                                    logger.info(f"Tournament {tournament_id} has ELO calculation")
+                        tournament_name = tournament_metadata.get('name') or f'Tournament {tournament_id}'
                         
                         return {
                             'final_table_url': pattern_url,
                             'tournament_id': tournament_id,
                             'name': tournament_name,
                             'url': pattern_url,
-                            'has_elo_calculation': has_elo_calculation
+                            'has_elo_calculation': tournament_metadata.get('has_elo_calculation', False),
+                            'metadata': tournament_metadata
                         }
                 except Exception as e:
                     logger.info(f"Constructed URL failed: {pattern_url} - {e}")
@@ -668,8 +819,9 @@ class ChessResultsCrawler:
                 return {
                     'excel_url': excel_url,
                     'tournament_id': tournament_id,
-                    'name': f'Tournament {tournament_id}',
-                    'has_elo_calculation': False  # Default for fallback case
+                    'name': tournament_metadata.get('name') or f'Tournament {tournament_id}',
+                    'has_elo_calculation': tournament_metadata.get('has_elo_calculation', False),
+                    'metadata': tournament_metadata
                 }
             else:
                 logger.warning(f"Could not find Excel export or final table link for tournament {tournament_id}")
