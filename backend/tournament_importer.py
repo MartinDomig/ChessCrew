@@ -337,6 +337,8 @@ def parse_players(df, header, header_row_idx, tournament, result_format):
     tb1_col = None
     tb2_col = None
     tb3_col = None
+    pts_col = None
+    
     for col in header:
         col_str = str(col).upper().strip()
         if col_str == 'TB1':
@@ -345,13 +347,23 @@ def parse_players(df, header, header_row_idx, tournament, result_format):
             tb2_col = col
         elif col_str == 'TB3':
             tb3_col = col
+        elif col_str in ['PTS', 'PTS.', 'POINTS', 'POINTS.', 'PUNKTE', 'PUNKTE.']:
+            pts_col = col
     
-    # If we found TB columns, use them as they're the standard for chess-results.com
+    # If we found TB columns, check if there's also an explicit points column
     if tb1_col:
-        wtg1_column = tb1_col
-        wtg2_column = tb2_col
-        wtg3_column = tb3_col
-        print(f"Detected TB pattern: TB1='{tb1_col}', TB2='{tb2_col}', TB3='{tb3_col}'")
+        if pts_col:
+            # If both TB1 and explicit points column exist, use points column for main score
+            wtg1_column = pts_col
+            wtg2_column = tb1_col  # TB1 becomes first tiebreak
+            wtg3_column = tb2_col  # TB2 becomes second tiebreak
+            print(f"Detected mixed pattern: Pts='{pts_col}', TB1='{tb1_col}', TB2='{tb2_col}', TB3='{tb3_col}'")
+        else:
+            # Only TB columns, assume TB1 contains main points (old behavior)
+            wtg1_column = tb1_col
+            wtg2_column = tb2_col
+            wtg3_column = tb3_col
+            print(f"Detected TB pattern: TB1='{tb1_col}', TB2='{tb2_col}', TB3='{tb3_col}'")
     else:
         # Find scoring columns with original logic
         for i, col in enumerate(header):
