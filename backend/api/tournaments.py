@@ -17,7 +17,10 @@ def format_tournament_player(tp):
     return {
         'player_id': tp.player_id,
         'name': tp.name,
-        'rank': tp.rank,
+        'rank': tp.ranking,
+        'starting_rank': tp.starting_rank,
+        'title': tp.title,
+        'rating': tp.rating,
         'points': tp.points,
         'tiebreak1': tp.tiebreak1,
         'tiebreak2': tp.tiebreak2,
