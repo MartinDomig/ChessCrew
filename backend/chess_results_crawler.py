@@ -478,12 +478,88 @@ class ChessResultsCrawler:
                 
                 # Extract tournament name from the page
                 tournament_name = None
-                title_elements = soup.find_all(['h1', 'h2', 'title'])
-                for elem in title_elements:
-                    text = elem.get_text().strip()
-                    if text and 'chess-results' not in text.lower():
-                        tournament_name = text
-                        break
+                
+                # Method 1: Look for tournament title in specific patterns
+                # Chess-results.com often puts the tournament name in specific places
+                
+                # Try to find it in the page title
+                title_tag = soup.find('title')
+                if title_tag:
+                    title_text = title_tag.get_text().strip()
+                    # Remove "chess-results.com" and clean up
+                    if 'chess-results.com' in title_text:
+                        title_parts = title_text.split('chess-results.com')
+                        if len(title_parts) > 1:
+                            tournament_name = title_parts[0].strip(' -|')
+                        elif len(title_parts) == 1:
+                            tournament_name = title_parts[0].strip(' -|')
+                    else:
+                        tournament_name = title_text
+                    logger.info(f"Found tournament name from title: {tournament_name}")
+                
+                # Method 2: Look for tournament name in headers or specific text patterns
+                if not tournament_name or 'Tournament' in tournament_name:
+                    # Look for h1, h2, h3 headers that might contain the tournament name
+                    headers = soup.find_all(['h1', 'h2', 'h3'])
+                    for header in headers:
+                        text = header.get_text().strip()
+                        if text and len(text) > 5 and 'chess-results' not in text.lower():
+                            tournament_name = text
+                            logger.info(f"Found tournament name from header: {tournament_name}")
+                            break
+                
+                # Method 3: Look for tournament name in table captions or strong/bold text
+                if not tournament_name or 'Tournament' in tournament_name:
+                    # Look in table captions
+                    captions = soup.find_all('caption')
+                    for caption in captions:
+                        text = caption.get_text().strip()
+                        if text and len(text) > 5 and 'chess-results' not in text.lower():
+                            tournament_name = text
+                            logger.info(f"Found tournament name from caption: {tournament_name}")
+                            break
+                    
+                    # Look in strong/bold text near the top of the page
+                    if not tournament_name or 'Tournament' in tournament_name:
+                        strong_tags = soup.find_all(['strong', 'b'])[:10]  # Check first 10 bold elements
+                        for strong in strong_tags:
+                            text = strong.get_text().strip()
+                            if text and len(text) > 10 and 'chess-results' not in text.lower() and tournament_id not in text:
+                                tournament_name = text
+                                logger.info(f"Found tournament name from bold text: {tournament_name}")
+                                break
+                
+                # Method 4: Look for patterns in the first few rows of text
+                if not tournament_name or 'Tournament' in tournament_name:
+                    # Get all text and look for tournament-like patterns
+                    page_text = soup.get_text()
+                    lines = [line.strip() for line in page_text.split('\n') if line.strip()]
+                    
+                    for line in lines[:20]:  # Check first 20 lines
+                        # Skip lines that are too short or contain unwanted content
+                        if (len(line) > 10 and 
+                            'chess-results' not in line.lower() and 
+                            'login' not in line.lower() and
+                            'logout' not in line.lower() and
+                            tournament_id not in line and
+                            not line.isdigit() and
+                            any(word in line.lower() for word in ['meisterschaft', 'championship', 'tournament', 'open', 'cup', 'liga'])):
+                            tournament_name = line
+                            logger.info(f"Found tournament name from page text: {tournament_name}")
+                            break
+                
+                # Clean up the tournament name
+                if tournament_name:
+                    # Remove common unwanted suffixes/prefixes
+                    tournament_name = re.sub(r'^(Tournament|Turnier)\s*:?\s*', '', tournament_name, flags=re.IGNORECASE)
+                    tournament_name = re.sub(r'\s*-\s*chess-results\.com.*$', '', tournament_name, flags=re.IGNORECASE)
+                    tournament_name = re.sub(r'^Chess-Results Server\s*', '', tournament_name, flags=re.IGNORECASE)
+                    tournament_name = re.sub(r'^chess-results\.com\s*-?\s*', '', tournament_name, flags=re.IGNORECASE)
+                    tournament_name = tournament_name.strip(' -|')
+                
+                # Fallback to ID-based name if nothing found
+                if not tournament_name or len(tournament_name) < 3:
+                    tournament_name = f'Tournament {tournament_id}'
                 
                 return {
                     'final_table_url': final_table_url,
@@ -515,6 +591,45 @@ class ChessResultsCrawler:
                     if soup_test.find('table') or soup_test.find(string=re.compile(r'Rang|Rank|Name', re.IGNORECASE)):
                         logger.info(f"Found tournament data at constructed URL: {pattern_url}")
                         
+                        # Extract tournament name from this page
+                        tournament_name = None
+                        
+                        # Try to find it in the page title
+                        title_tag = soup_test.find('title')
+                        if title_tag:
+                            title_text = title_tag.get_text().strip()
+                            if 'chess-results.com' in title_text:
+                                title_parts = title_text.split('chess-results.com')
+                                if len(title_parts) > 1:
+                                    tournament_name = title_parts[0].strip(' -|')
+                                elif len(title_parts) == 1:
+                                    tournament_name = title_parts[0].strip(' -|')
+                            else:
+                                tournament_name = title_text
+                            logger.info(f"Found tournament name from constructed URL: {tournament_name}")
+                        
+                        # Look in headers if title didn't work
+                        if not tournament_name or 'Tournament' in tournament_name:
+                            headers = soup_test.find_all(['h1', 'h2', 'h3'])
+                            for header in headers:
+                                text = header.get_text().strip()
+                                if text and len(text) > 5 and 'chess-results' not in text.lower():
+                                    tournament_name = text
+                                    logger.info(f"Found tournament name from header in constructed URL: {tournament_name}")
+                                    break
+                        
+                        # Clean up the tournament name
+                        if tournament_name:
+                            # Remove common unwanted prefixes/suffixes
+                            tournament_name = re.sub(r'^(Tournament|Turnier)\s*:?\s*', '', tournament_name, flags=re.IGNORECASE)
+                            tournament_name = re.sub(r'\s*-\s*chess-results\.com.*$', '', tournament_name, flags=re.IGNORECASE)
+                            tournament_name = re.sub(r'^Chess-Results Server\s*', '', tournament_name, flags=re.IGNORECASE)
+                            tournament_name = re.sub(r'^chess-results\.com\s*-?\s*', '', tournament_name, flags=re.IGNORECASE)
+                            tournament_name = tournament_name.strip(' -|')
+                        
+                        if not tournament_name or len(tournament_name) < 3:
+                            tournament_name = f'Tournament {tournament_id}'
+                        
                         # Check for ELO calculation on this page
                         elo_section = soup_test.find(string=re.compile(r'Elorechnung|Rating calculation', re.IGNORECASE))
                         has_elo_calculation = False
@@ -530,7 +645,7 @@ class ChessResultsCrawler:
                         return {
                             'final_table_url': pattern_url,
                             'tournament_id': tournament_id,
-                            'name': f'Tournament {tournament_id}',
+                            'name': tournament_name,
                             'url': pattern_url,
                             'has_elo_calculation': has_elo_calculation
                         }
