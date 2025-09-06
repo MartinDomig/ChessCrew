@@ -162,6 +162,13 @@ def detect_result_format(df, header, header_row_idx):
     return 'simple'
 
 
+def set_player_active_if_youth(player):
+    """Set player to active only if their category starts with 'U' (youth categories), excluding U20"""
+    if player and player.kat and player.kat.startswith('U') and player.kat.upper() != 'U20':
+        player.is_active = True
+        db.session.add(player)
+
+
 def parse_team_players(df, tournament):
     """Parse player data from team tournament Excel file"""
     ranked_players = []
@@ -241,8 +248,7 @@ def parse_team_players(df, tournament):
                 # Find or note player
                 player = find_existing_player(name)
                 if player:
-                    player.is_active = True
-                    db.session.add(player)
+                    set_player_active_if_youth(player)
                 else:
                     print(f'Player not found: {name}')
 
@@ -436,8 +442,7 @@ def parse_players(df, header, header_row_idx, tournament, result_format):
         name = data.get('Name', '').strip()
         player = find_existing_player(name)
         if player:
-            player.is_active = True
-            db.session.add(player)
+            set_player_active_if_youth(player)
         else:
             print(f'Player not found: {name}')
 
