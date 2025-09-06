@@ -173,7 +173,7 @@ def parse_team_players(df, tournament):
     """Parse player data from team tournament Excel file"""
     ranked_players = []
     games_to_create = []  # Store game data to create after players are committed
-    rank = 1
+    player_count = 0  # Track number of players processed
     
     # Find all team sections by looking for team headers and player data
     i = 0
@@ -256,7 +256,7 @@ def parse_team_players(df, tournament):
                     tournament_id=tournament.id,
                     player_id=player.id if player else None,
                     name=name,
-                    ranking=rank,
+                    ranking=None,  # No individual rankings in team tournaments
                     points=points,
                     tiebreak1=0,  # Not used for team tournaments
                     tiebreak2=0   # Not used for team tournaments
@@ -278,8 +278,8 @@ def parse_team_players(df, tournament):
                                 'result': round_result
                             })
                 
-                rank += 1
-                print(f"Added player {rank}: {name}, points: {points}, games: {games_count}")
+                player_count += 1
+                print(f"Added player {player_count}: {name}, points: {points}, games: {games_count}")
                 
                 i += 1
             continue
@@ -898,8 +898,11 @@ def import_tournament_from_excel(file_path, tournament_name=None, location=None,
         ranked_players, round_columns, rank_dict, team_games_count = parse_players(df, header, header_row_idx, tournament, result_format)
         db.session.flush()
         
-        for p in ranked_players:
-            print(f"Ranked Player: {p.ranking} - {p.name} (ID: {p.player_id})")
+        for i, p in enumerate(ranked_players):
+            if result_format == 'team':
+                print(f"Team Player {i+1}: {p.name} (ID: {p.player_id}) - {p.points} pts")
+            else:
+                print(f"Ranked Player: {p.ranking} - {p.name} (ID: {p.player_id})")
 
         # For team tournaments, games are already created in parse_team_players
         if result_format == 'team':
