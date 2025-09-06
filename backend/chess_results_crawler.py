@@ -376,17 +376,27 @@ class ChessResultsCrawler:
                     metadata['name'] = title_text
                 logger.info(f"Found tournament name from title: {metadata['name']}")
             
-            # Method 2: Look for tournament name in headers if title didn't work
-            if not metadata['name'] or 'Tournament' in metadata['name']:
-                headers = soup.find_all(['h1', 'h2', 'h3'])
-                for header in headers:
-                    text = header.get_text().strip()
-                    if text and len(text) > 5 and 'chess-results' not in text.lower():
-                        metadata['name'] = text
-                        logger.info(f"Found tournament name from header: {metadata['name']}")
-                        break
-            
-            # Method 3: Look for tournament name in table captions or strong/bold text
+            # Method 2: Look for tournament name in headers (may be more detailed than title)
+            headers = soup.find_all(['h1', 'h2', 'h3'])
+            for header in headers:
+                text = header.get_text().strip()
+                if text and len(text) > 5 and 'chess-results' not in text.lower():
+                    # Skip generic messages/notes
+                    skip_keywords = ['note:', 'reduce', 'server load', 'search engines', 'google', 'yahoo', 'button']
+                    if any(skip_word in text.lower() for skip_word in skip_keywords):
+                        continue
+                        
+                    # Prefer headers that are longer and contain more detail than the title
+                    if not metadata['name'] or len(text) > len(metadata['name']):
+                        # Only update if this looks like a tournament name (contains common tournament keywords)
+                        tournament_keywords = ['tournament', 'turnier', 'championship', 'meisterschaft', 'cup', 'open', 'gruppe', 'group']
+                        if any(keyword in text.lower() for keyword in tournament_keywords):
+                            # Additional check: if it's much longer than expected, it might be concatenated content
+                            if len(text) < 200:  # Reasonable tournament name length
+                                metadata['name'] = text
+                                logger.info(f"Found more detailed tournament name from header: {metadata['name']}")
+                                break
+            # Method 3: Look for tournament name in table captions or strong/bold text if still needed
             if not metadata['name'] or 'Tournament' in metadata['name']:
                 # Look in table captions
                 captions = soup.find_all('caption')
