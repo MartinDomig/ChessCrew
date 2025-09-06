@@ -347,7 +347,7 @@ def parse_players(df, header, header_row_idx, tournament, result_format):
             tb2_col = col
         elif col_str == 'TB3':
             tb3_col = col
-        elif col_str in ['PTS', 'PTS.', 'POINTS', 'POINTS.', 'PUNKTE', 'PUNKTE.']:
+        elif col_str in ['PTS', 'PKT', 'PTS.', 'PKT.', 'POINTS', 'POINTS.', 'PUNKTE', 'PUNKTE.']:
             pts_col = col
     
     # If we found TB columns, check if there's also an explicit points column
@@ -364,6 +364,23 @@ def parse_players(df, header, header_row_idx, tournament, result_format):
             wtg2_column = tb2_col
             wtg3_column = tb3_col
             print(f"Detected TB pattern: TB1='{tb1_col}', TB2='{tb2_col}', TB3='{tb3_col}'")
+    elif pts_col:
+        # No TB columns but we found an explicit points column
+        # Look for Wtg1/Wtg2/Wtg3 or other tiebreak columns
+        wtg1_column = pts_col
+        
+        # Find tiebreak columns after the points column
+        pts_idx = header.index(pts_col)
+        for i in range(pts_idx + 1, len(header)):
+            col_name = str(header[i]).strip()
+            if col_name and col_name != 'nan':
+                if not wtg2_column:
+                    wtg2_column = header[i]
+                elif not wtg3_column:
+                    wtg3_column = header[i]
+                    break
+        
+        print(f"Detected points pattern: Pts='{pts_col}', Wtg1='{wtg2_column}', Wtg2='{wtg3_column}'")
     else:
         # Find scoring columns with original logic
         for i, col in enumerate(header):
