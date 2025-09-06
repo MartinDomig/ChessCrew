@@ -29,7 +29,8 @@ KEY_TRANSLATIONS = {
     'rating': 'Wertung',
     'username': 'Benutzername',
     'citizen': 'Staatsbuerger',
-    'address': 'Adresse'
+    'address': 'Adresse',
+    'fide_title': 'FIDE-Titel'
 }
 
 def calculate_player_tournament_stats(player_id):
@@ -345,7 +346,8 @@ def import_players_csv():
         ('phone', 'Telefon', str),
         ('email', 'Email', str),
         ('club', 'Verein', str),
-        ('address', 'Adresse', str)
+        ('address', 'Adresse', str),
+        ('fide_title', 'fidetitel', str)
     ]
 
     for row in reader:

@@ -15,6 +15,7 @@ class Player(db.Model):
     elo = db.Column(db.Integer, nullable=False)
     fide_number = db.Column(db.Integer, nullable=True)
     fide_elo = db.Column(db.Integer, nullable=True)
+    fide_title = db.Column(db.String(10), nullable=True)
     birthday = db.Column(db.Date, nullable=True)
     kat = db.Column(db.String(10), nullable=True)
     zip = db.Column(db.String(10), nullable=True)
