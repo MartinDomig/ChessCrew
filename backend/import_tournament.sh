@@ -1,9 +1,4 @@
 #!/bin/bash
-"""
-Wrapper script to run the tournament import script with proper environment setup.
-
-This script ensures the virtual environment is activated before running the import.
-"""
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,8 +17,6 @@ source "$VENV_DIR/bin/activate"
 
 # Check if required environment variables are set
 if [ -z "$FLASK_SECRET_KEY" ]; then
-    echo "Warning: FLASK_SECRET_KEY environment variable not set"
-    echo "Setting a default value for this session"
     export FLASK_SECRET_KEY="dev-secret-key-for-import"
 fi
 

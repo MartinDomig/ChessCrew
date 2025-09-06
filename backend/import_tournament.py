@@ -52,6 +52,7 @@ def import_single_tournament(tournament_id):
         # Import here to avoid issues with Flask app context
         from app import create_app
         from chess_results_crawler import ChessResultsCrawler
+        from db.models import Tournament
         
         # Create Flask app context
         app = create_app()
@@ -63,25 +64,61 @@ def import_single_tournament(tournament_id):
             tournament_url = f"https://chess-results.com/tnr{tournament_id}.aspx"
             logger.info(f"Importing tournament: {tournament_url}")
             
-            # Import the tournament
-            result = crawler.import_tournament(tournament_url)
+            # Step 1: Check if tournament already imported
+            existing_tournament = Tournament.query.filter_by(chess_results_id=tournament_id).first()
+            if existing_tournament:
+                logger.warning(f"Tournament {tournament_id} already imported: {existing_tournament.name}")
+                return {
+                    'success': False,
+                    'error': 'Tournament already imported',
+                    'existing_tournament': existing_tournament.name
+                }
             
-            if result and result.get('success'):
-                logger.info(f"✓ Successfully imported tournament:")
-                logger.info(f"  Name: {result.get('tournament_name')}")
-                logger.info(f"  Location: {result.get('location')}")
-                logger.info(f"  Date: {result.get('date')}")
-                logger.info(f"  Players: {result.get('imported_players')}")
-                logger.info(f"  Games: {result.get('imported_games')}")
-                logger.info(f"  Mapped players: {result.get('mapped_players')}")
+            # Step 2: Login to chess-results.com
+            if not crawler.login():
+                logger.error("Failed to login to chess-results.com")
+                return {'success': False, 'error': 'Failed to login to chess-results.com'}
+            
+            # Step 3: Check if tournament has ELO calculation
+            if not crawler.check_elo_calculation(tournament_url, tournament_id):
+                logger.warning(f"Tournament {tournament_id} has no ELO calculation - importing anyway")
+            
+            # Step 4: Get tournament details
+            tournament_details = crawler.get_tournament_details(tournament_url, tournament_id)
+            if not tournament_details:
+                logger.error(f"Could not get details for tournament {tournament_id}")
+                return {'success': False, 'error': 'Could not get tournament details'}
+            
+            tournament_name = tournament_details.get('name', f'Tournament {tournament_id}')
+            logger.info(f"Tournament name: {tournament_name}")
+            
+            # Step 5: Download Excel export
+            excel_file = crawler.download_excel_export(tournament_details)
+            if not excel_file:
+                logger.error(f"Could not download Excel file for tournament {tournament_id}")
+                return {'success': False, 'error': 'Could not download Excel file'}
+            
+            logger.info(f"Downloaded Excel file: {excel_file}")
+            
+            # Step 6: Import tournament using the tournament_importer module
+            try:
+                result = crawler.import_tournament_from_excel_file(excel_file, tournament_name, tournament_id)
+                
+                # Clean up the temporary file
+                if os.path.exists(excel_file):
+                    os.remove(excel_file)
+                
                 return result
-            else:
-                logger.error(f"✗ Failed to import tournament: {result.get('error', 'Unknown error')}")
-                return None
+                
+            except Exception as import_error:
+                # Clean up the temporary file even if import fails
+                if os.path.exists(excel_file):
+                    os.remove(excel_file)
+                raise import_error
                 
     except Exception as e:
         logger.error(f"Error importing tournament {tournament_id}: {str(e)}", exc_info=True)
-        return None
+        return {'success': False, 'error': str(e)}
 
 def main():
     parser = argparse.ArgumentParser(
@@ -120,10 +157,19 @@ Examples:
         # Import the tournament
         result = import_single_tournament(tournament_id)
         
-        if result:
+        if result and result.get('success'):
+            logger.info(f"✓ Successfully imported tournament:")
+            logger.info(f"  Name: {result.get('tournament_name')}")
+            logger.info(f"  Location: {result.get('location')}")
+            logger.info(f"  Date: {result.get('date')}")
+            logger.info(f"  Players: {result.get('imported_players')}")
+            logger.info(f"  Games: {result.get('imported_games')}")
+            logger.info(f"  Mapped players: {result.get('mapped_players')}")
             logger.info("Import completed successfully!")
             sys.exit(0)
         else:
+            error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
+            logger.error(f"✗ Failed to import tournament: {error_msg}")
             logger.error("Import failed!")
             sys.exit(1)
             
