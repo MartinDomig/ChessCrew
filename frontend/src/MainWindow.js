@@ -4,7 +4,6 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
 import PeopleIcon from '@mui/icons-material/People';
-import SportsScoreIcon from '@mui/icons-material/SportsScore';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -26,7 +25,6 @@ import PlayerDetails from './PlayerDetails';
 import PlayerList from './PlayerList';
 import {PlayerListProvider, usePlayerList} from './PlayerListContext';
 import TournamentDetails from './TournamentDetails';
-import TournamentImportDialog from './TournamentImportDialog';
 import TournamentList from './TournamentList';
 import {TournamentListProvider, useTournamentList} from './TournamentListContext';
 import PlayerListSearchBar from './PlayerListSearchBar';
@@ -76,7 +74,7 @@ function useNavigationStack(initialStack = []) {
 }
 
 // Navigation renderer component
-function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, handleImportTournamentResults, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading }) {
+function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading }) {
   if (!navObject) return null;
 
   const { type, data } = navObject;
@@ -188,17 +186,6 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
             borderBottom: '1px solid #eee',
             alignItems: 'center'
           }}>
-            {isAdmin && (
-              <IconButton
-                color="primary"
-                onClick={handleImportTournamentResults}
-                size="small"
-                title="Import Turnierergebnisse"
-                sx={{ p: 0.5 }}
-              >
-                <SportsScoreIcon fontSize="small" />
-              </IconButton>
-            )}
           </Box>
           <TournamentList
             tournaments={tournaments}
@@ -247,8 +234,6 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
 function MainWindowContent({user}) {
   const [importOpen, setImportOpen] = useState(false);
   const handleImportClick = () => setImportOpen(true);
-  const [tournamentImportOpen, setTournamentImportOpen] = useState(false);
-  const handleImportTournamentResults = () => setTournamentImportOpen(true);
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
   const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading} = usePlayerList();
@@ -370,12 +355,10 @@ function MainWindowContent({user}) {
           <ImportDialog
             open={importOpen}
             onClose={() => setImportOpen(false)}
-            onImported={reloadPlayers}
-          />
-          <TournamentImportDialog
-            open={tournamentImportOpen}
-            onClose={() => setTournamentImportOpen(false)}
-            onImported={reloadTournaments}
+            onImported={async () => {
+              await clearApiCache();
+              reloadPlayers();
+            }}
           />
         </Toolbar>
       </AppBar>
@@ -424,7 +407,6 @@ function MainWindowContent({user}) {
                 onTournamentDelete={handleTournamentDelete}
                 isAdmin={isAdmin}
                 handleImportClick={handleImportClick}
-                handleImportTournamentResults={handleImportTournamentResults}
                 players={players}
                 tournaments={tournaments}
                 activeOnly={activeOnly}
@@ -446,7 +428,6 @@ function MainWindowContent({user}) {
                 onTournamentDelete={handleTournamentDelete}
                 isAdmin={isAdmin}
                 handleImportClick={handleImportClick}
-                handleImportTournamentResults={handleImportTournamentResults}
                 players={players}
                 tournaments={tournaments}
                 activeOnly={activeOnly}
@@ -467,7 +448,6 @@ function MainWindowContent({user}) {
             onTournamentDelete={handleTournamentDelete}
             isAdmin={isAdmin}
             handleImportClick={handleImportClick}
-            handleImportTournamentResults={handleImportTournamentResults}
             players={players}
             tournaments={tournaments}
             activeOnly={activeOnly}
