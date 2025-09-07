@@ -6,12 +6,11 @@ import time
 import logging
 import hashlib
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from urllib.parse import urljoin, urlparse, parse_qs
 from bs4 import BeautifulSoup
 from db.models import db, Tournament, TournamentPlayer, Player
 from sqlalchemy import func
-from tournament_importer import import_tournament_from_excel
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -166,221 +165,147 @@ class ChessResultsCrawler:
             logger.error(f"Error during login: {str(e)}")
             return False
 
-    def get_finished_tournaments(self):
-        """Get list of finished tournaments from the last 7 days"""
-        try:
-            if not self.logged_in and not self.login():
-                logger.error("Cannot proceed without login")
-                return []
+    def click_show_tournament_details_button(self, soup, tournament_url, tournament_id, need_details=False):
+        """
+        Click the "Show tournament details" button if it exists on the page.
+        Returns the updated soup object after the button click, or None if no button found.
+        """
+
+        time.sleep(2)
+
+        details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'})
+        if not details_button:
+            return None
             
-            # First, get the federation page
-            response = self.session.get(self.fed_url)
-            response.raise_for_status()
+        logger.info(f"Found 'Show tournament details' button for tournament {tournament_id}, submitting form...")
+        
+        # Get form data for submission
+        form = details_button.find_parent('form')
+        if not form:
+            logger.warning(f"Could not find form for details button for tournament {tournament_id}")
+            return None
             
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Look for the tournament selection dropdown ("Turnierauswahl")
-            # Find the form that contains the dropdown
-            dropdown_form = None
-            tournament_dropdown = None
-            
-            # Look for select elements that might contain tournament options
-            select_elements = soup.find_all('select')
-            
-            for select in select_elements:
-                options = select.find_all('option')
-                for option in options:
-                    option_text = option.get_text(strip=True).lower()
-                    # Look for "In den letzten 7 tagen beendete turniere" or similar
-                    if 'letzten' in option_text and 'beendete' in option_text:
-                        tournament_dropdown = select
-                        dropdown_form = select.find_parent('form')
-                        target_option = option
-                        logger.info(f"Found finished tournaments option: {option.get_text(strip=True)}")
-                        break
-                
-                if tournament_dropdown:
-                    break
-            
-            if not tournament_dropdown:
-                logger.error("Could not find tournament selection dropdown")
-                return []
-            
-            if not dropdown_form:
-                logger.error("Could not find form containing dropdown")
-                return []
-            
-            # Prepare form data for dropdown selection
-            form_data = {}
-            
-            # Get all form inputs to maintain state
-            for input_field in dropdown_form.find_all('input'):
-                name = input_field.get('name')
-                value = input_field.get('value', '')
-                if name:
-                    form_data[name] = value
-            
-            # Set the dropdown value to select finished tournaments
-            dropdown_name = tournament_dropdown.get('name')
-            target_value = target_option.get('value')
-            
-            if dropdown_name and target_value:
-                form_data[dropdown_name] = target_value
-                logger.info(f"Setting dropdown {dropdown_name} = {target_value}")
-            
-            # Submit the form to get finished tournaments
-            form_action = dropdown_form.get('action') or self.fed_url
+        form_data = {}
+        
+        # Get all hidden inputs
+        for hidden_input in form.find_all('input', type='hidden'):
+            name = hidden_input.get('name')
+            value = hidden_input.get('value', '')
+            if name:
+                form_data[name] = value
+        
+        # Get the name of the first submit button
+        submit_button = form.find('input', {'type': 'submit'})
+        if submit_button:
+            form_data[submit_button.get('name')] = submit_button.get('value', 'Show tournament details')
+
+        # Get form action and resolve it properly
+        form_action = form.get('action', '')
+        if form_action:
             if not form_action.startswith('http'):
-                form_action = urljoin(self.base_url, form_action)
-            
-            logger.info(f"Submitting dropdown form to: {form_action}")
-            dropdown_response = self.session.post(form_action, data=form_data)
-            dropdown_response.raise_for_status()
-            
-            # Parse the response to get tournament links
-            soup = BeautifulSoup(dropdown_response.content, 'html.parser')
-            
-            # Save filtered page for debugging
-            try:
-                with open('/tmp/filtered_tournaments.html', 'w', encoding='utf-8') as f:
-                    f.write(dropdown_response.text)
-                logger.debug("Saved filtered page to /tmp/filtered_tournaments.html")
-            except:
-                pass
-            
-            # Now look for tournament links in the filtered results
-            finished_tournaments = []
-            
-            # Find all tournament links - try multiple patterns
-            tournament_links = soup.find_all('a', href=re.compile(r'tnr.*\.aspx'))
-            logger.debug(f"Found {len(tournament_links)} links with 'tnr' pattern")
-            
-            if not tournament_links:
-                # Try alternative patterns
-                tournament_links = soup.find_all('a', href=re.compile(r'tnr'))
-                logger.debug(f"Found {len(tournament_links)} links with broader 'tnr' pattern")
-            
-            for link in tournament_links:
-                href = link.get('href')
-                tournament_name = link.get_text(strip=True)
-                
-                logger.debug(f"Processing link: '{tournament_name}' -> {href}")
-                
-                if href and tournament_name:
-                    # Filter out navigation links and very short names
-                    if len(tournament_name) > 5:  # Reduced from 10 to catch more tournaments
-                        full_url = urljoin(self.base_url, href)
-                        tournament_id = self.extract_tournament_id(href)
-                        
-                        if tournament_id:
-                            finished_tournaments.append({
-                                'name': tournament_name,
-                                'url': full_url,
-                                'id': tournament_id
-                            })
-                            logger.debug(f"Added tournament: {tournament_name} (ID: {tournament_id})")
-                        else:
-                            logger.debug(f"Could not extract ID from: {href}")
-                    else:
-                        logger.debug(f"Skipped short name: '{tournament_name}'")
-                else:
-                    logger.debug(f"Skipped link with missing href or name")
-            
-            logger.info(f"Found {len(finished_tournaments)} finished tournaments")
-            return finished_tournaments
-            
-        except Exception as e:
-            logger.error(f"Error getting finished tournaments: {str(e)}")
-            return []
+                from urllib.parse import urljoin
+                submit_url = urljoin(tournament_url, form_action)
+            else:
+                submit_url = form_action
+        else:
+            submit_url = tournament_url
+        
+        if need_details:
+            if '?' in submit_url:
+                submit_url = submit_url + '&turdet=YES'
+            else:
+                submit_url = submit_url + '?turdet=YES'
+        else:
+            if 'turdet=YES' in submit_url:
+                submit_url = submit_url.replace('turdet=YES', '').rstrip('&').rstrip('?')
 
-    def extract_tournament_id(self, href):
-        """Extract tournament ID from URL"""
-        try:
-            # Pattern: tnr1133378.aspx or tnr1133378.aspx?lan=0
-            match = re.search(r'tnr(\d+)', href)
-            if match:
-                return match.group(1)
-            
-            # Fallback: look for any number in the URL
-            parsed = urlparse(href)
-            query_params = parse_qs(parsed.query)
-            
-            # Check for tnr parameter
-            tnr_param = query_params.get('tnr', [None])[0]
-            if tnr_param:
-                return tnr_param
-                
-            logger.debug(f"Could not extract tournament ID from: {href}")
-            return None
-        except Exception as e:
-            logger.debug(f"Error extracting tournament ID from {href}: {e}")
-            return None
+        # Fix any double ampersands that might have been introduced
+        submit_url = submit_url.replace('&&', '&')
 
+        logger.info(f"Submitting form to: {submit_url}")
+
+        # Submit the form to the correct URL
+        response = self.session.post(submit_url, data=form_data)
+        response.raise_for_status()
+        new_soup = BeautifulSoup(response.content, 'html.parser')
+        logger.info(f"Successfully submitted tournament details form for {tournament_id}")
+        
+        return new_soup
+            
     def _parse_tournament_metadata(self, soup, tournament_id):
         """Parse tournament metadata like elo rating, date, location, type, time control"""
         metadata = {
-            'name': None,
-            'elo_rating': None,
-            'date': None,
-            'location': None,
+            'id': tournament_id,
+            'tournament_url': f"https://chess-results.com/tnr{tournament_id}.aspx",
+            'name': f"Tournament {tournament_id}",
+            'date': date.today().strftime("%Y-%m-%d"),
+            'location': "Earth",
             'tournament_type': None,
             'time_control': None,
-            'has_elo_calculation': False
+            'elo_calculation': None,
+            'number_of_rounds': None
         }
-        
+
         try:
-            # Get all text content for parsing
-            page_text = soup.get_text()
-            
-            # Parse ELO rating/calculation
-            elo_section = soup.find(string=re.compile(r'Elorechnung|Rating calculation|Elo', re.IGNORECASE))
-            if elo_section:
-                parent = elo_section.parent
-                if parent:
-                    parent_text = parent.get_text().strip()
-                    logger.info(f"Found ELO section for tournament {tournament_id}: {parent_text}")
-                    # If it contains "-" or "no" or "nein", there's no ELO calculation
-                    if not any(indicator in parent_text.lower() for indicator in ['-', 'no', 'nein', 'none']):
-                        metadata['has_elo_calculation'] = True
-                        # Try to extract specific ELO rating if available
-                        elo_match = re.search(r'(\d{3,4})', parent_text)
-                        if elo_match:
-                            metadata['elo_rating'] = int(elo_match.group(1))
-                        logger.info(f"Tournament {tournament_id} has ELO calculation")
-                    else:
-                        logger.info(f"Tournament {tournament_id} has no ELO calculation (found: {parent_text})")
-            
-            # Parse tournament name
-            # Method 1: Look for tournament title in page title
-            title_tag = soup.find('title')
-            if title_tag:
-                title_text = title_tag.get_text().strip()
-                # Remove "chess-results.com" prefix and clean up
-                if 'chess-results.com' in title_text.lower():
-                    # Find the actual tournament name after chess-results.com
-                    # Pattern: "Chess-Results Server Chess-results.com - TOURNAMENT NAME"
-                    parts = title_text.split(' - ')
-                    if len(parts) >= 2:
-                        # Take everything after the first " - " following chess-results.com
-                        for i, part in enumerate(parts):
-                            if 'chess-results.com' in part.lower() and i + 1 < len(parts):
-                                # Join all remaining parts as the tournament name
-                                metadata['name'] = ' - '.join(parts[i + 1:]).strip()
-                                break
-                    if not metadata['name']:
-                        # Fallback: try splitting on chess-results.com and take the latter part
-                        title_parts = title_text.split('chess-results.com')
-                        if len(title_parts) > 1:
-                            metadata['name'] = title_parts[1].strip(' -|')
-                else:
-                    metadata['name'] = title_text
-                logger.info(f"Found tournament name from title: {metadata['name']}")
-            
-            # Method 2: Look for tournament name in headers (may be more detailed than title)
-            headers = soup.find_all(['h1', 'h2', 'h3'])
+            for row in soup.find_all('tr'):
+                # If the row contains 2 <td> elements, we have a key-value pair
+                cols = row.find_all('td')
+                if len(cols) == 2:
+                    key = cols[0].get_text(strip=True).lower()
+                    value = cols[1].get_text(strip=True)
+                    
+                    if 'elo' in key or 'elorechnung' in key or 'rating calculation' in key:
+                        if value == '' or value == '-':
+                            metadata['elo_calculation'] = None
+                        else:
+                            metadata['elo_calculation'] = value.strip()
+                    
+                    elif 'datum' in key or 'date' in key or 'beginn' in key or 'start' in key or 'from' in key or 'vom' in key:
+                        if value and value.strip():
+                            metadata['date'] = value.strip()
+                            # sometimes, date is in fromat "2019/09/07 to 2019/09/08", just retain the start date
+                            if ' to ' in metadata['date']:
+                                metadata['date'] = metadata['date'].split(' to ')[0]
+                            if ' bis ' in metadata['date']:
+                                metadata['date'] = metadata['date'].split(' bis ')[0]
+                            for fmt in ("%d.%m.%Y", "%Y/%m/%d", "%Y-%m-%d", "%d/%m/%Y"):
+                                try:
+                                    parsed_date = datetime.strptime(metadata['date'], fmt)
+                                    metadata['date'] = parsed_date.strftime("%Y-%m-%d")
+                                    break
+                                except ValueError:
+                                    continue
+                            logger.info(f"Found date for tournament {tournament_id}: {metadata['date']}")
+                    
+                    elif 'ort' in key or 'location' in key or 'venue' in key or 'place' in key or 'austragungsort' in key:
+                        if value and value.strip():
+                            metadata['location'] = value.strip()
+                            logger.info(f"Found location for tournament {tournament_id}: {metadata['location']}")
+                    
+                    elif 'modus' in key or 'turniermodus' in key or 'tournament type' in key:
+                        if value and value.strip():
+                            metadata['tournament_type'] = value.strip()
+                            logger.info(f"Found tournament type for tournament {tournament_id}: {metadata['tournament_type']}")
+                    
+                    elif 'bedenkzeit' in key or 'time control' in key:
+                        logger.info(f"Found time control entry for tournament {tournament_id}: '{value}'")
+                        if value and value.strip():
+                            metadata['time_control'] = value.strip()
+                            logger.info(f"Found time control for tournament {tournament_id}: {metadata['time_control']}")
+                    
+                    elif 'Number of rounds' in key or 'rundenanzahl' in key or 'rounds' in key:
+                        if value and value.strip():
+                            metadata['number_of_rounds'] = value.strip()
+                            logger.info(f"Found number of rounds for tournament {tournament_id}: {metadata['number_of_rounds']}")
+
+            logger.info(f"Parsed metadata for tournament {tournament_id}: {metadata}")
+
+            # Look for tournament name in headers (may be more detailed than title)
+            headers = soup.find_all(['h2'])
             for header in headers:
-                text = header.get_text().strip()
-                if text and len(text) > 5 and 'chess-results' not in text.lower():
+                text = header.get_text() if header else None
+                if text and text.strip() and len(text.strip()) > 5 and 'chess-results' not in text.lower():
+                    text = text.strip()
                     # Skip generic messages/notes
                     skip_keywords = ['note:', 'reduce', 'server load', 'search engines', 'google', 'yahoo', 'button']
                     if any(skip_word in text.lower() for skip_word in skip_keywords):
@@ -388,150 +313,13 @@ class ChessResultsCrawler:
                         
                     # Prefer headers that are longer and contain more detail than the title
                     if not metadata['name'] or len(text) > len(metadata['name']):
-                        # Only update if this looks like a tournament name (contains common tournament keywords)
-                        tournament_keywords = ['tournament', 'turnier', 'championship', 'meisterschaft', 'cup', 'open', 'gruppe', 'group']
-                        if any(keyword in text.lower() for keyword in tournament_keywords):
-                            # Additional check: if it's much longer than expected, it might be concatenated content
-                            if len(text) < 200:  # Reasonable tournament name length
-                                metadata['name'] = text
-                                logger.info(f"Found more detailed tournament name from header: {metadata['name']}")
-                                break
-            # Method 3: Look for tournament name in table captions or strong/bold text if still needed
-            if not metadata['name'] or 'Tournament' in metadata['name']:
-                # Look in table captions
-                captions = soup.find_all('caption')
-                for caption in captions:
-                    text = caption.get_text().strip()
-                    if text and len(text) > 5 and 'chess-results' not in text.lower():
                         metadata['name'] = text
-                        logger.info(f"Found tournament name from caption: {metadata['name']}")
+                        logger.info(f"Found tournament name: {metadata['name']}")
                         break
-                
-                # Look in strong/bold text near the top of the page
-                if not metadata['name'] or 'Tournament' in metadata['name']:
-                    strong_tags = soup.find_all(['strong', 'b'])[:10]  # Check first 10 bold elements
-                    for strong in strong_tags:
-                        text = strong.get_text().strip()
-                        if text and len(text) > 10 and 'chess-results' not in text.lower() and tournament_id not in text:
-                            metadata['name'] = text
-                            logger.info(f"Found tournament name from bold text: {metadata['name']}")
-                            break
-            
-            # Method 4: Look for patterns in the first few rows of text
-            if not metadata['name'] or 'Tournament' in metadata['name']:
-                # Get all text and look for tournament-like patterns
-                lines = [line.strip() for line in soup.get_text().split('\n') if line.strip()]
-                
-                for line in lines[:20]:  # Check first 20 lines
-                    # Skip lines that are too short or contain unwanted content
-                    if (len(line) > 10 and 
-                        'chess-results' not in line.lower() and 
-                        'login' not in line.lower() and
-                        'logout' not in line.lower() and
-                        tournament_id not in line and
-                        not line.isdigit() and
-                        any(word in line.lower() for word in ['meisterschaft', 'championship', 'tournament', 'open', 'cup', 'liga'])):
-                        metadata['name'] = line
-                        logger.info(f"Found tournament name from page text: {metadata['name']}")
-                        break
-            
-            # Clean up the tournament name
-            if metadata['name']:
-                # Remove common unwanted suffixes/prefixes
-                metadata['name'] = re.sub(r'^(Tournament|Turnier)\s*:?\s*', '', metadata['name'], flags=re.IGNORECASE)
-                metadata['name'] = re.sub(r'\s*-\s*chess-results\.com.*$', '', metadata['name'], flags=re.IGNORECASE)
-                metadata['name'] = re.sub(r'^Chess-Results Server\s*', '', metadata['name'], flags=re.IGNORECASE)
-                metadata['name'] = re.sub(r'^chess-results\.com\s*-?\s*', '', metadata['name'], flags=re.IGNORECASE)
-                metadata['name'] = metadata['name'].strip(' -|')
             
             # Fallback to ID-based name if nothing found
             if not metadata['name'] or len(metadata['name']) < 3:
                 metadata['name'] = f'Tournament {tournament_id}'
-            
-            # Parse date - look for date patterns
-            date_patterns = [
-                r'(\d{1,2}[\./]\d{1,2}[\./]\d{4})',  # DD/MM/YYYY or DD.MM.YYYY
-                r'(\d{4}[\-/]\d{1,2}[\-/]\d{1,2})',  # YYYY-MM-DD or YYYY/MM/DD
-                r'(\d{1,2}\.\s*\d{1,2}\.\s*\d{4})',  # DD. MM. YYYY
-                r'(\d{1,2}\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})',  # DD Month YYYY
-                r'((January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'   # Month DD, YYYY
-            ]
-            
-            for pattern in date_patterns:
-                match = re.search(pattern, page_text, re.IGNORECASE)
-                if match:
-                    metadata['date'] = match.group(1)
-                    logger.info(f"Found date for tournament {tournament_id}: {metadata['date']}")
-                    break
-            
-            # Parse location - look for location indicators
-            location_patterns = [
-                r'(?:Location|Ort|Venue|Place):\s*([^\n\r]+)',
-                r'(?:in|@)\s+([A-Z][a-zA-Z\s]+(?:,\s*[A-Z][a-zA-Z\s]*)*)',  # in CityName, Country
-                r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,\s*[A-Z]{2,3})',     # City, Country abbreviation
-            ]
-            
-            for pattern in location_patterns:
-                match = re.search(pattern, page_text)
-                if match:
-                    location = match.group(1).strip()
-                    if len(location) > 2 and len(location) < 100:  # Reasonable location length
-                        metadata['location'] = location
-                        logger.info(f"Found location for tournament {tournament_id}: {metadata['location']}")
-                        break
-            
-            # Parse tournament type - look for type indicators
-            type_patterns = [
-                r'(?:Type|Art|System):\s*([^\n\r]+)',
-                r'\b(Swiss|Round Robin|Knockout|Elimination|Arena|Blitz|Rapid|Classical)\b',
-                r'\b(Schweizer System|Rundturnier|K\.O\.-System)\b'
-            ]
-            
-            for pattern in type_patterns:
-                match = re.search(pattern, page_text, re.IGNORECASE)
-                if match:
-                    tournament_type = match.group(1).strip()
-                    if len(tournament_type) > 2:
-                        metadata['tournament_type'] = tournament_type
-                        logger.info(f"Found tournament type for tournament {tournament_id}: {metadata['tournament_type']}")
-                        break
-            
-            # Parse time control - look for time control patterns
-            time_control_patterns = [
-                r'(?:Time control|Bedenkzeit|Time|Zeit):\s*([^\n\r]+)',
-                r'(\d+\s*min(?:utes?)?(?:\s*\+\s*\d+\s*sec(?:onds?)?)?)',  # 90 min + 30 sec
-                r'(\d+\'\s*\+\s*\d+\'\')',  # 90' + 30''
-                r'(\d{1,2}:\d{2}(?:\s*\+\s*\d+)?)',  # 1:30 + 30
-                r'\b(Blitz|Rapid|Classical|Standard)\b'
-            ]
-            
-            for pattern in time_control_patterns:
-                match = re.search(pattern, page_text, re.IGNORECASE)
-                if match:
-                    time_control = match.group(1).strip()
-                    if len(time_control) > 1:
-                        metadata['time_control'] = time_control
-                        logger.info(f"Found time control for tournament {tournament_id}: {metadata['time_control']}")
-                        break
-                        
-            # Try to find metadata in tables or structured data
-            tables = soup.find_all('table')
-            for table in tables:
-                rows = table.find_all('tr')
-                for row in rows:
-                    cells = row.find_all(['td', 'th'])
-                    if len(cells) >= 2:
-                        key = cells[0].get_text().strip().lower()
-                        value = cells[1].get_text().strip()
-                        
-                        if any(term in key for term in ['date', 'datum']) and not metadata['date']:
-                            metadata['date'] = value
-                        elif any(term in key for term in ['location', 'ort', 'place', 'venue']) and not metadata['location']:
-                            metadata['location'] = value
-                        elif any(term in key for term in ['type', 'art', 'system']) and not metadata['tournament_type']:
-                            metadata['tournament_type'] = value
-                        elif any(term in key for term in ['time', 'zeit', 'control', 'bedenkzeit']) and not metadata['time_control']:
-                            metadata['time_control'] = value
                             
         except Exception as e:
             logger.error(f"Error parsing tournament metadata for {tournament_id}: {e}")
@@ -541,333 +329,108 @@ class ChessResultsCrawler:
     def get_tournament_details(self, tournament_url, tournament_id):
         """Get tournament details and check if it should be processed"""
         try:
-            response = self.session.get(tournament_url)
+            response = self.session.get(tournament_url, allow_redirects=True)
             response.raise_for_status()
+            
+            # Update tournament_url to the redirected URL
+            actual_tournament_url = response.url
+            if actual_tournament_url != tournament_url:
+                logger.info(f"Tournament URL redirected from {tournament_url} to {actual_tournament_url}")
+                tournament_url = actual_tournament_url
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Step 1: Check if we need to submit the "Show tournament details" form (anti-crawling measure)
-            details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'})
-            if details_button:
-                logger.info(f"Found 'Show tournament details' button for tournament {tournament_id}, submitting form...")
+            # Check if we need to submit the "Show tournament details" form (anti-crawling measure)
+            updated_soup = self.click_show_tournament_details_button(soup, tournament_url, tournament_id, True)
+            if updated_soup:
+                soup = updated_soup
+            else:
+                # If no button, try appending turdet=YES directly to the URL
+                if '?' in tournament_url:
+                    tournament_url_with_details = tournament_url + '&turdet=YES'
+                else:
+                    tournament_url_with_details = tournament_url + '?turdet=YES'
                 
-                # Get form data for submission
-                form = details_button.find_parent('form')
-                if form:
-                    form_data = {}
-                    
-                    # Get all hidden inputs
-                    for hidden_input in form.find_all('input', type='hidden'):
-                        name = hidden_input.get('name')
-                        value = hidden_input.get('value', '')
-                        if name:
-                            form_data[name] = value
-                    
-                    # Add the button click
-                    form_data['cb_alleDetails'] = details_button.get('value', 'Show tournament details')
-                    
-                    # Submit the form
-                    response = self.session.post(tournament_url, data=form_data)
-                    response.raise_for_status()
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    logger.info(f"Successfully submitted tournament details form for {tournament_id}")
-            
-            # Step 2: Look for "Tournament details" link and follow it  
-            tournament_details_link = None
-            # Look for various patterns for the tournament details link
-            # Be more specific to avoid matching privacy policy or other non-tournament links
-            details_link_patterns = [
-                r'tournament\s+details',
-                r'turnier\s+details', 
-                r'tournament\s+info',
-                r'turnier\s+info',
-                r'turnierdetails',
-                r'tournament\s+information'
-            ]
-            
-            # Find the tournament details link
-            for pattern in details_link_patterns:
-                link = soup.find('a', string=re.compile(pattern, re.IGNORECASE))
-                if link and link.get('href'):
-                    href = link.get('href')
-                    # Avoid privacy policy, imprint, and other non-tournament pages
-                    if not any(exclude in href.lower() for exclude in ['impressum', 'datenschutz', 'privacy', 'imprint', 'contact']):
-                        tournament_details_link = link
-                        logger.info(f"Found tournament details link with pattern '{pattern}': {href}")
-                        break
-            
-            # Alternative: look for links that contain the tournament ID and might be details
-            if not tournament_details_link:
-                all_links = soup.find_all('a', href=True)
-                for link in all_links:
-                    href = link.get('href', '')
-                    text = link.get_text().strip().lower()
-                    # Look for tournament-specific links that might be details
-                    if (tournament_id in href and 
-                        any(term in text for term in ['detail', 'info']) and
-                        not any(exclude in href.lower() for exclude in ['impressum', 'datenschutz', 'privacy', 'imprint', 'contact'])):
-                        tournament_details_link = link
-                        logger.info(f"Found tournament details link by ID match: {href}")
-                        break
-            
-            # If found, follow the link
-            if tournament_details_link:
-                details_href = tournament_details_link.get('href')
-                details_url = details_href if details_href.startswith('http') else urljoin(self.base_url, details_href)
-                logger.info(f"Following tournament details link: {details_url}")
-                
-                response = self.session.get(details_url)
+                logger.info(f"No details button found, trying direct URL approach with turdet=YES: {tournament_url_with_details}")
+                response = self.session.get(tournament_url_with_details)
                 response.raise_for_status()
                 soup = BeautifulSoup(response.content, 'html.parser')
-                
-                # Step 3: Check for "Show tournament details" button again on the details page
-                details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'}) or \
-                                soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
-                if details_button:
-                    logger.info(f"Found 'Show tournament details' button on details page for tournament {tournament_id}, submitting form...")
-                    
-                    # Get form data for submission
-                    form = details_button.find_parent('form')
-                    if form:
-                        # Get form action
-                        action = form.get('action', '')
-                        if not action.startswith('http'):
-                            action = urljoin(details_url, action)
-                        
-                        form_data = {}
-                        
-                        # Get all hidden inputs
-                        for hidden_input in form.find_all('input', type='hidden'):
-                            name = hidden_input.get('name')
-                            value = hidden_input.get('value', '')
-                            if name:
-                                form_data[name] = value
-                        
-                        # Add the button click
-                        button_name = details_button.get('name', 'cb_alleDetails')
-                        button_value = details_button.get('value', 'Show tournament details')
-                        form_data[button_name] = button_value
-                        
-                        # Submit the form
-                        response = self.session.post(action, data=form_data)
-                        response.raise_for_status()
-                        soup = BeautifulSoup(response.content, 'html.parser')
-                        logger.info(f"Successfully submitted tournament details form on details page for {tournament_id}")
-                        tournament_url = response.url  # Update URL in case of redirect
-            else:
-                logger.info(f"No tournament details link found for tournament {tournament_id}, continuing with current page")
             
-            # Step 4: Parse tournament metadata (elo rating, date, location, type, time control)
+            logger.info(f"Accessed tournament page for {tournament_id}, parsing metadata...")
+
+            # Parse tournament metadata
             tournament_metadata = self._parse_tournament_metadata(soup, tournament_id)
+
+            # Team tournament detection: Search for any <a> with a text that contains "Teamaufstellung" or "Team composition"
+            tournament_metadata['is_team_tournament'] = False
+            team_link = soup.find('a', string=re.compile(r'Teamaufstellung|Team composition', re.IGNORECASE))
+            if team_link:
+                tournament_metadata['is_team_tournament'] = True
+                logger.info(f"Tournament {tournament_id} detected as team tournament based on link text.")
             
-            # Step 5: After metadata parsing, look for tournament content (crosstable/results)
-            # Look for final ranking crosstable link or Excel export directly
-            final_table_link = None
-            crosstable_patterns = [
-                r'final.*ranking.*crosstable',
-                r'crosstable.*final',
-                r'endtabelle.*runden',
-                r'kreuztabelle',
-                r'final.*table',
-                r'end.*table',
-                r'tabelle',
-                r'table'
-            ]
-            
-            # Step 2: After clicking "Show tournament details", look for tournament content directly on this page
-            # Look for final ranking crosstable link or Excel export directly
-            final_table_link = None
-            crosstable_patterns = [
-                r'final.*ranking.*crosstable',
-                r'crosstable.*final',
-                r'endtabelle.*runden',
-                r'kreuztabelle',
-                r'final.*table',
-                r'end.*table',
-                r'tabelle',
-                r'table'
-            ]
-            
-            # Try to find crosstable link
-            logger.info(f"Looking for tournament table links on page for tournament {tournament_id}")
-            all_links = soup.find_all('a', href=True)
-            
-            for pattern in crosstable_patterns:
-                final_table_link = soup.find('a', string=re.compile(pattern, re.IGNORECASE))
-                if final_table_link:
-                    logger.info(f"Found final ranking crosstable link using pattern: {pattern}")
-                    break
-            
-            # If no specific crosstable link found, look for any tournament-related links
-            if not final_table_link:
-                for link in all_links:
-                    href = link.get('href', '')
-                    text = link.get_text().strip()
-                    
-                    # Look for links that contain the tournament ID and table-related terms
-                    if (f'tnr{tournament_id}' in href or tournament_id in href) and \
-                       any(term in href.lower() or term in text.lower() 
-                           for term in ['table', 'tabelle', 'ranking', 'result', 'ergebnis']):
-                        final_table_link = link
-                        logger.info(f"Found tournament table link: {text} -> {href}")
-                        break
-            
-            # If still no table link, look for Excel export directly
-            if not final_table_link:
-                for link in all_links:
-                    href = link.get('href', '')
-                    text = link.get_text().strip()
-                    
-                    # Look for Excel export links
-                    if 'excel' in href.lower() or 'excel' in text.lower():
-                        logger.info(f"Found direct Excel export link: {text} -> {href}")
-                        excel_url = href if href.startswith('http') else urljoin(self.base_url, href)
-                        
-                        return {
-                            'excel_url': excel_url,
-                            'tournament_id': tournament_id,
-                            'name': f'Tournament {tournament_id}',
-                            'has_elo_calculation': tournament_metadata.get('has_elo_calculation', False),
-                            'metadata': tournament_metadata
-                        }
-            
-            # Step 3: If we found a crosstable link, follow it
-            if final_table_link:
-                final_table_href = final_table_link.get('href')
-                
-                # Handle both relative and absolute URLs
-                if final_table_href.startswith('http'):
-                    final_table_url = final_table_href
-                else:
-                    final_table_url = urljoin(self.base_url, final_table_href)
-                
-                logger.info(f"Following final ranking crosstable link: {final_table_url}")
-                
-                # Navigate to final table page
-                response = self.session.get(final_table_url)
-                response.raise_for_status()
-                soup = BeautifulSoup(response.content, 'html.parser')
-                
-                # Step 4: Check for "Show tournament details" button one more time
-                details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'}) or \
-                                soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
-                if details_button:
-                    logger.info(f"Found 'Show tournament details' button on final table page for tournament {tournament_id}, submitting form...")
-                    
-                    # Get form data for submission
-                    form = details_button.find_parent('form')
-                    if form:
-                        # Get form action
-                        action = form.get('action', '')
-                        if not action.startswith('http'):
-                            action = urljoin(final_table_url, action)
-                        
-                        form_data = {}
-                        
-                        # Get all hidden inputs
-                        for hidden_input in form.find_all('input', type='hidden'):
-                            name = hidden_input.get('name')
-                            value = hidden_input.get('value', '')
-                            if name:
-                                form_data[name] = value
-                        
-                        # Add the button click
-                        button_name = details_button.get('name', 'cb_alleDetails')
-                        button_value = details_button.get('value', 'Show tournament details')
-                        form_data[button_name] = button_value
-                        
-                        # Submit the form
-                        response = self.session.post(action, data=form_data)
+            # If this is a team tournament, search for the "Team Composition with round results" or "Teamaufstellung mit Einzelergebnissen" link
+            if tournament_metadata['is_team_tournament']:
+                team_composition_link = soup.find('a', string=re.compile(r'Team Composition with round results|Teamaufstellung mit Einzelergebnissen', re.IGNORECASE))
+                if team_composition_link:
+                    href = team_composition_link.get('href')
+                    if href:
+                        full_url = href if href.startswith('http') else urljoin(self.base_url, href)
+                        logger.info(f"Found Team Composition link for tournament {tournament_id}: {full_url}")
+
+                        # follow the link
+                        response = self.session.get(full_url)
                         response.raise_for_status()
                         soup = BeautifulSoup(response.content, 'html.parser')
-                        logger.info(f"Successfully submitted tournament details form on final table page for {tournament_id}")
-                        final_table_url = response.url  # Update URL in case of redirect
-                        
-                        # Update metadata from the final table page if we have more details
-                        updated_metadata = self._parse_tournament_metadata(soup, tournament_id)
-                        # Merge with existing metadata, preferring new data
-                        for key, value in updated_metadata.items():
-                            if value and not tournament_metadata.get(key):
-                                tournament_metadata[key] = value
-                
-                # Extract tournament name from metadata
-                tournament_name = tournament_metadata.get('name') or f'Tournament {tournament_id}'
-                
-                return {
-                    'final_table_url': final_table_url,
-                    'tournament_id': tournament_id,
-                    'name': tournament_name,
-                    'url': final_table_url,
-                    'has_elo_calculation': tournament_metadata.get('has_elo_calculation', False),
-                    'metadata': tournament_metadata
-                }
-            
-            # If no table links found, try to construct URLs manually
-            logger.info(f"No table links found, trying to construct URLs for tournament {tournament_id}")
-            
-            # Try common URL patterns for chess-results.com
-            base_tournament_url = f"https://chess-results.com/tnr{tournament_id}.aspx"
-            table_url_patterns = [
-                f"{base_tournament_url}?lan=1&art=4&turdet=YES",  # Final ranking with details
-                f"{base_tournament_url}?lan=1&art=1&turdet=YES",  # Starting list with details
-                f"{base_tournament_url}?lan=1&art=2&turdet=YES"   # Pairings with details
-            ]
-            
-            for pattern_url in table_url_patterns:
-                try:
-                    logger.info(f"Trying constructed URL: {pattern_url}")
-                    response = self.session.get(pattern_url)
-                    response.raise_for_status()
-                    
-                    # Check if this page has tournament data (look for player tables)
-                    soup_test = BeautifulSoup(response.content, 'html.parser')
-                    if soup_test.find('table') or soup_test.find(string=re.compile(r'Rang|Rank|Name', re.IGNORECASE)):
-                        logger.info(f"Found tournament data at constructed URL: {pattern_url}")
-                        
-                        # Parse metadata from this page
-                        constructed_metadata = self._parse_tournament_metadata(soup_test, tournament_id)
-                        # Merge with existing metadata, preferring new data
-                        for key, value in constructed_metadata.items():
-                            if value and not tournament_metadata.get(key):
-                                tournament_metadata[key] = value
-                        
-                        tournament_name = tournament_metadata.get('name') or f'Tournament {tournament_id}'
-                        
-                        return {
-                            'final_table_url': pattern_url,
-                            'tournament_id': tournament_id,
-                            'name': tournament_name,
-                            'url': pattern_url,
-                            'has_elo_calculation': tournament_metadata.get('has_elo_calculation', False),
-                            'metadata': tournament_metadata
-                        }
-                except Exception as e:
-                    logger.info(f"Constructed URL failed: {pattern_url} - {e}")
-                    continue
-            
-            # Fallback: look for Excel export link directly on the current page
-            excel_export_link = soup.find('a', string=re.compile(r'Export to Excel', re.IGNORECASE))
-            if excel_export_link:
-                excel_url = excel_export_link.get('href')
-                # Handle both relative and absolute URLs
-                if excel_url.startswith('http'):
-                    # Absolute URL, use as is
-                    pass
+
+                        # Check if we need to submit the "Show tournament details" form (anti-crawling measure)
+                        updated_soup = self.click_show_tournament_details_button(soup, tournament_url, tournament_id)
+                        if updated_soup:
+                            soup = updated_soup
+
+                        # Find the Excel export link
+                        excel_link = soup.find('a', string=re.compile(r'Excel', re.IGNORECASE))
+                        if excel_link:
+                            tournament_metadata['excel_url'] = excel_link.get('href')
+                            logger.info(f"Found Excel export link for tournament {tournament_id}: {tournament_metadata['excel_url']}")
+   
+                    else:
+                        logger.info(f"Team Composition link found but no href for tournament {tournament_id}")
                 else:
-                    # Relative URL, join with base URL
-                    excel_url = urljoin(self.base_url, excel_url)
-                
-                return {
-                    'excel_url': excel_url,
-                    'tournament_id': tournament_id,
-                    'name': tournament_metadata.get('name') or f'Tournament {tournament_id}',
-                    'has_elo_calculation': tournament_metadata.get('has_elo_calculation', False),
-                    'metadata': tournament_metadata
-                }
+                    logger.info(f"No Team Composition link found for team tournament {tournament_id}")
+
             else:
-                logger.warning(f"Could not find Excel export or final table link for tournament {tournament_id}")
-                return None
-                
+                end_table_link = soup.find('a', string=re.compile(r'Endtabelle nach|Final ranking crosstable after', re.IGNORECASE))
+                if end_table_link:
+                    href = end_table_link.get('href')
+                    if href:
+                        full_url = href if href.startswith('http') else urljoin(self.base_url, href)
+                        logger.info(f"Found End Table link for tournament {tournament_id}: {full_url}")
+
+                        # follow the link
+                        response = self.session.get(full_url)
+                        response.raise_for_status()
+                        soup = BeautifulSoup(response.content, 'html.parser')
+
+                        # Check if we need to submit the "Show tournament details" form (anti-crawling measure)
+                        # Use the actual response URL, not the original tournament_url
+                        updated_soup = self.click_show_tournament_details_button(soup, response.url, tournament_id)
+                        if updated_soup:
+                            soup = updated_soup
+
+                        # Find the Excel export link
+                        excel_link = soup.find('a', string=re.compile(r'Excel', re.IGNORECASE))
+                        if excel_link:
+                            tournament_metadata['excel_url'] = excel_link.get('href')
+                            logger.info(f"Found Excel export link for tournament {tournament_id}: {tournament_metadata['excel_url']}")
+
+                    else:
+                        logger.info(f"End Table link found but no href for tournament {tournament_id}")
+                else:
+                    logger.info(f"No End Table link found for tournament {tournament_id}")
+
+            # Return the metadata and the URL to the final table or Excel export if found
+            return tournament_metadata
+
         except Exception as e:
             logger.error(f"Error getting tournament details for {tournament_id}: {str(e)}")
             return None
@@ -875,91 +438,12 @@ class ChessResultsCrawler:
     def download_excel_export(self, tournament_details):
         """Download Excel export from tournament details"""
         try:
-            tournament_id = tournament_details['tournament_id']
-            
-            # Try multiple methods to get Excel export
-            excel_url = None
-            
-            # Method 1: Check for direct Excel URL
-            if 'excel_url' in tournament_details:
-                excel_url = tournament_details['excel_url']
-                logger.info(f"Using direct Excel export URL for tournament {tournament_id}")
-            
-            # Method 2: Try to construct Excel URL from final table URL
-            elif 'final_table_url' in tournament_details:
-                final_table_url = tournament_details['final_table_url']
-                logger.info(f"Trying to get Excel export from final table page for tournament {tournament_id}")
-                
-                # First try to find the link on the page
-                response = self.session.get(final_table_url)
-                response.raise_for_status()
-                
-                soup = BeautifulSoup(response.content, 'html.parser')
-                
-                # Check if we need to submit "Show tournament details" form again for this page
-                show_details_button = soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
-                if show_details_button:
-                    logger.info(f"Found 'Show tournament details' button on final table page, submitting form...")
-                    
-                    # Find the form containing this button
-                    form = show_details_button.find_parent('form')
-                    if form:
-                        # Get form action
-                        action = form.get('action', '')
-                        if not action.startswith('http'):
-                            action = urljoin(final_table_url, action)
-                        
-                        # Prepare form data
-                        form_data = {}
-                        
-                        # Get viewstate and other hidden fields
-                        for hidden_input in form.find_all('input', type='hidden'):
-                            name = hidden_input.get('name')
-                            value = hidden_input.get('value', '')
-                            if name:
-                                form_data[name] = value
-                        
-                        # Add the button that was clicked
-                        button_name = show_details_button.get('name')
-                        button_value = show_details_button.get('value')
-                        if button_name:
-                            form_data[button_name] = button_value
-                        
-                        # Submit the form
-                        response = self.session.post(action, data=form_data)
-                        response.raise_for_status()
-                        soup = BeautifulSoup(response.content, 'html.parser')
-                        logger.info(f"Successfully submitted tournament details form on final table page for {tournament_id}")
-                
-                # Look for Excel export link on final table page
-                excel_links = soup.find_all('a', string=re.compile(r'excel|xlsx|xls', re.IGNORECASE))
-                if not excel_links:
-                    # Try href patterns
-                    excel_links = soup.find_all('a', href=re.compile(r'excel=', re.IGNORECASE))
-                if not excel_links:
-                    # Try alternative patterns
-                    excel_links = soup.find_all('a', href=re.compile(r'\.xlsx?$', re.IGNORECASE))
-                
-                if excel_links:
-                    href = excel_links[0].get('href')
-                    # Handle both relative and absolute URLs
-                    if href.startswith('http'):
-                        excel_url = href
-                    else:
-                        excel_url = urljoin(self.base_url, href)
-                    logger.info(f"Found Excel export link on final table page: {excel_url}")
-                else:
-                    # Method 3: Construct Excel URL based on crosstable pattern
-                    # Pattern for crosstable with round results: base_url + ?lan=0&zeilen=0&art=4&turdet=YES&prt=4&excel=2010
-                    base_url = final_table_url.split('?')[0]  # Remove existing parameters
-                    excel_url = f"{base_url}?lan=0&zeilen=0&art=4&turdet=YES&prt=4&excel=2010"
-                    logger.info(f"Constructed crosstable Excel export URL for tournament {tournament_id}: {excel_url}")
-            else:
-                logger.error(f"No Excel export method available for tournament {tournament_id}")
+            if not 'excel_url' in tournament_details:
+                logger.error("No Excel export URL found in tournament details")
                 return None
             
             # Download the Excel file
-            excel_response = self.session.get(excel_url)
+            excel_response = self.session.get(tournament_details['excel_url'])
             excel_response.raise_for_status()
             
             # Check if response is actually an Excel file
@@ -971,654 +455,15 @@ class ChessResultsCrawler:
                     # Still try to save it, sometimes the content-type is wrong
             
             # Save to temporary location
-            filename = f"tournament_{tournament_id}.xlsx"
+            filename = f"tournament_{tournament_details['id']}.xlsx"
             filepath = os.path.join('/tmp', filename)
             
             with open(filepath, 'wb') as f:
                 f.write(excel_response.content)
-            
-            logger.info(f"Downloaded Excel file for tournament {tournament_id}: {filepath}")
+
+            logger.info(f"Downloaded Excel file for tournament {tournament_details['id']}: {filepath}")
             return filepath
             
         except Exception as e:
-            logger.error(f"Error downloading Excel export for tournament {tournament_id}: {str(e)}")
+            logger.error(f"Error downloading Excel export for tournament {tournament_details['id']}: {str(e)}")
             return None
-
-    def download_cross_table_excel(self, tournament_details):
-        """Download cross table Excel export with round-by-round results"""
-        try:
-            tournament_id = tournament_details['tournament_id']
-            
-            # Extract base URL from final table URL
-            final_table_url = tournament_details.get('final_table_url', '')
-            if '?' in final_table_url:
-                base_url = final_table_url.split('?')[0]
-            else:
-                base_url = final_table_url
-            
-            # Construct cross table Excel URL (art=2 for pairings/results)
-            cross_table_excel_url = f"{base_url}?lan=1&art=2&prt=4&excel=2010"
-            logger.info(f"Attempting to download cross table Excel for tournament {tournament_id}")
-            logger.info(f"Cross table URL: {cross_table_excel_url}")
-            
-            response = self.session.get(cross_table_excel_url)
-            response.raise_for_status()
-            
-            # Save to temporary file
-            filename = f"cross_table_{tournament_id}.xlsx"
-            filepath = os.path.join('/tmp', filename)
-            
-            with open(filepath, 'wb') as f:
-                f.write(response.content)
-            
-            logger.info(f"Downloaded cross table Excel file for tournament {tournament_id}: {filepath}")
-            return filepath
-            
-        except Exception as e:
-            logger.error(f"Error downloading cross table Excel for tournament {tournament_id}: {str(e)}")
-            return None
-
-    def check_elo_calculation(self, tournament_url, tournament_id):
-        """Check if tournament has ELO calculation by looking for Rating calculation field"""
-        try:
-            response = self.session.get(tournament_url)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Strategy 1: Check if there's a "Turnierdetails anzeigen" / "Show tournament details" link
-            details_link = None
-            for link in soup.find_all('a'):
-                link_text = link.get_text(strip=True).lower()
-                if ('turnierdetails anzeigen' in link_text or 
-                    'show tournament details' in link_text or
-                    'tournament details' in link_text):
-                    details_link = link
-                    break
-            
-            if details_link:
-                details_href = details_link.get('href')
-                if details_href:
-                    # Convert relative URL to absolute if needed
-                    if not details_href.startswith('http'):
-                        from urllib.parse import urljoin
-                        details_url = urljoin(tournament_url, details_href)
-                    else:
-                        details_url = details_href
-                    
-                    logger.info(f"Found tournament details link for {tournament_id}, following: {details_url}")
-                    
-                    # Follow the details link
-                    details_response = self.session.get(details_url)
-                    details_response.raise_for_status()
-                    soup = BeautifulSoup(details_response.content, 'html.parser')
-            
-            # Strategy 2: Check if we need to submit the "Show tournament details" form (fallback)
-            details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'})
-            if details_button:
-                logger.info(f"Found 'Show tournament details' button for rating check of tournament {tournament_id}, submitting form...")
-                
-                # Get form data for submission
-                form = details_button.find_parent('form')
-                if form:
-                    form_data = {}
-                    
-                    # Get all hidden inputs
-                    for hidden_input in form.find_all('input', type='hidden'):
-                        name = hidden_input.get('name')
-                        value = hidden_input.get('value', '')
-                        if name:
-                            form_data[name] = value
-                    
-                    # Add the button click
-                    form_data['cb_alleDetails'] = details_button.get('value', 'Show tournament details')
-                    
-                    # Submit the form
-                    response = self.session.post(tournament_url, data=form_data)
-                    response.raise_for_status()
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    logger.info(f"Successfully submitted tournament details form for rating check of {tournament_id}")
-                    
-                    # After form submission, check if there's now a tournament details link
-                    details_link_after_form = None
-                    for link in soup.find_all('a'):
-                        link_text = link.get_text(strip=True).lower()
-                        if ('turnierdetails anzeigen' in link_text or 
-                            'show tournament details' in link_text or
-                            'tournament details' in link_text):
-                            details_link_after_form = link
-                            break
-                    
-                    if details_link_after_form:
-                        details_href = details_link_after_form.get('href')
-                        if details_href:
-                            # Convert relative URL to absolute if needed
-                            if not details_href.startswith('http'):
-                                from urllib.parse import urljoin
-                                details_url = urljoin(tournament_url, details_href)
-                            else:
-                                details_url = details_href
-                            
-                            logger.info(f"Found tournament details link after form submission for {tournament_id}, following: {details_url}")
-                            
-                            # Follow the details link
-                            details_response = self.session.get(details_url)
-                            details_response.raise_for_status()
-                            soup = BeautifulSoup(details_response.content, 'html.parser')
-            
-            # Now look for rating calculation sections in both German and English
-            # Strategy A: Look for specific rating patterns in the full page text
-            page_text = soup.get_text()
-            
-            # Check for clear "no rating" indicators first
-            if re.search(r'elorechnung\s*[-−‐]', page_text, re.IGNORECASE):
-                logger.info(f"Tournament {tournament_id} has no rating calculation: found 'Elorechnung -'")
-                return False
-            elif re.search(r'rating\s*calculation\s*[-−‐]', page_text, re.IGNORECASE):
-                logger.info(f"Tournament {tournament_id} has no rating calculation: found 'Rating calculation -'")
-                return False
-            
-            # Check for clear "has rating" indicators
-            # Look for patterns like "Elorechnung Elo international", "Rating calculation Rating national", etc.
-            if re.search(r'elorechnung.{0,20}(elo\s+)?(international|national|intnational)', page_text, re.IGNORECASE):
-                logger.info(f"Tournament {tournament_id} has rating calculation: found Elorechnung with international/national")
-                return True
-            elif re.search(r'rating\s*calculation.{0,50}(rating\s+)?(international|national)', page_text, re.IGNORECASE):
-                logger.info(f"Tournament {tournament_id} has rating calculation: found Rating calculation with international/national")
-                return True
-            elif re.search(r'elorechnung\s*(yes|ja|berechnet)', page_text, re.IGNORECASE):
-                logger.info(f"Tournament {tournament_id} has rating calculation: found positive Elorechnung")
-                return True
-            elif re.search(r'rating\s*calculation\s*(yes|ja|berechnet)', page_text, re.IGNORECASE):
-                logger.info(f"Tournament {tournament_id} has rating calculation: found positive Rating calculation")
-                return True
-            
-            # Strategy B: Look in structured elements
-            rating_patterns = [
-                r'Elorechnung',  # German
-                r'Rating calculation',  # English
-                r'Elo-?rechnung',  # German with optional hyphen
-                r'ELO.*calculation',  # English variants
-                r'rating\s*calculation',  # Case variations
-            ]
-            
-            for pattern in rating_patterns:
-                # Look for text containing the rating pattern
-                rating_elements = soup.find_all(text=re.compile(pattern, re.IGNORECASE))
-                
-                for elo_text in rating_elements:
-                    # Get the parent element and its siblings to find the value
-                    parent = elo_text.parent
-                    if parent:
-                        # Get the full row/context containing this text
-                        parent_row = parent.find_parent('tr') or parent
-                        full_text = parent_row.get_text().strip()
-                        
-                        logger.debug(f"Found rating section for {tournament_id}: '{full_text}'")
-                        
-                        # Look for dash indicating no rating calculation
-                        if re.search(r'(rating\s*calculation|elorechnung)\s*[-−‐]', full_text, re.IGNORECASE):
-                            logger.info(f"Tournament {tournament_id} has no rating calculation: '{full_text}'")
-                            return False
-                        elif re.search(r'(rating\s*calculation|elorechnung)\s*(yes|ja|berechnet)', full_text, re.IGNORECASE):
-                            logger.info(f"Tournament {tournament_id} has rating calculation: '{full_text}'")
-                            return True
-            
-            # Strategy 2: Look for "Parameters" link and check parameters page for more detailed info
-            params_link = soup.find('a', href=re.compile(r'tnr.*art=0'))
-            if params_link:
-                params_url = params_link.get('href')
-                if not params_url.startswith('http'):
-                    params_url = urljoin(self.base_url, params_url)
-                
-                logger.debug(f"Found parameters page for {tournament_id}: {params_url}")
-                
-                try:
-                    # Get the parameters page
-                    params_response = self.session.get(params_url)
-                    params_response.raise_for_status()
-                    params_soup = BeautifulSoup(params_response.content, 'html.parser')
-                    
-                    # Look for rating calculation in parameters page
-                    for pattern in rating_patterns:
-                        rating_elements = params_soup.find_all(text=re.compile(pattern, re.IGNORECASE))
-                        
-                        for elo_text in rating_elements:
-                            parent = elo_text.parent
-                            if parent:
-                                parent_row = parent.find_parent('tr') or parent
-                                full_text = parent_row.get_text().strip()
-                                
-                                logger.debug(f"Found rating section on parameters page for {tournament_id}: '{full_text}'")
-                                
-                                if re.search(r'(rating\s*calculation|elorechnung)\s*[-−‐]', full_text, re.IGNORECASE):
-                                    logger.info(f"Tournament {tournament_id} has no rating calculation (from parameters page): '{full_text}'")
-                                    return False
-                                elif re.search(r'(rating\s*calculation|elorechnung)\s*(yes|ja|berechnet)', full_text, re.IGNORECASE):
-                                    logger.info(f"Tournament {tournament_id} has rating calculation (from parameters page): '{full_text}'")
-                                    return True
-                except Exception as e:
-                    logger.debug(f"Could not check parameters page for {tournament_id}: {e}")
-            
-            # If no specific rating information found, be conservative and don't import
-            # This prevents unrated tournaments from being imported when rating status is unclear
-            logger.info(f"Tournament {tournament_id} - rating calculation status not found, assuming no (being conservative)")
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error checking ELO calculation for tournament {tournament_id}: {str(e)}")
-            return False
-
-    def import_tournament_from_excel_file(self, filepath, tournament_name, tournament_id):
-        """Import tournament using the tournament_importer module"""
-        try:
-            # Generate checksum for the file
-            sha256 = hashlib.sha256()
-            with open(filepath, 'rb') as f:
-                while chunk := f.read(8192):
-                    sha256.update(chunk)
-            checksum = sha256.hexdigest()
-
-            # Check if tournament already imported
-            if Tournament.query.filter_by(checksum=checksum).first():
-                logger.info(f"Tournament {tournament_id} already imported (checksum match)")
-                return {'success': False, 'reason': 'already_imported'}
-
-            # Use the tournament_importer module
-            result = import_tournament_from_excel(
-                filepath, 
-                tournament_name=tournament_name,
-                location="Austria",  # Default for Austrian federation
-                date=datetime.now().date(),  # Will be extracted from file if available
-                checksum=checksum,
-                chess_results_id=tournament_id,
-                chess_results_url=f"https://chess-results.com/tnr{tournament_id}.aspx"
-            )
-            
-            logger.info(f"Successfully imported tournament {tournament_id}: {result['tournament_name']}")
-            logger.info(f"  Imported {result['imported_players']} players, {result['imported_games']} games")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error importing tournament {tournament_id}: {str(e)}")
-            return {'success': False, 'reason': str(e)}
-
-    def tournament_exists(self, tournament_id, tournament_name):
-        """Check if tournament already exists in database"""
-        try:
-            # Create a checksum for the tournament
-            checksum_data = f"{tournament_id}_{tournament_name}"
-            checksum = hashlib.md5(checksum_data.encode()).hexdigest()
-            
-            existing = Tournament.query.filter_by(checksum=checksum).first()
-            return existing is not None
-        except Exception as e:
-            logger.error(f"Error checking if tournament exists: {str(e)}")
-            return False
-            
-            # Save players
-            for player_data in tournament_data['players']:
-                tournament_player = TournamentPlayer(
-                    tournament_id=tournament.id,
-                    name=player_data.get('name'),
-                    rank=player_data.get('rank'),
-                    points=player_data.get('points'),
-                    # You can add more fields as needed
-                )
-                db.session.add(tournament_player)
-            
-            db.session.commit()
-            logger.info(f"Saved tournament {tournament_id} with {len(tournament_data['players'])} players")
-            return True
-            
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error saving tournament data: {str(e)}")
-            return False
-
-    def crawl_finished_tournaments(self):
-        """Main crawling function that orchestrates the complete workflow"""
-        try:
-            logger.info("Starting chess-results.com crawler")
-            
-            # Step 1: Login
-            if not self.login():
-                logger.error("Failed to login, aborting crawler")
-                return 0
-            
-            # Step 2: Get list of finished tournaments
-            tournaments = self.get_finished_tournaments()
-            if not tournaments:
-                logger.info("No finished tournaments found")
-                return 0
-            
-            logger.info(f"Found {len(tournaments)} finished tournaments")
-            processed_count = 0
-            
-            # Step 3: Process each tournament
-            for tournament in tournaments:
-                tournament_id = tournament['id']
-                tournament_name = tournament['name']
-                tournament_url = tournament['url']
-                
-                logger.info(f"Processing tournament: {tournament_name} (ID: {tournament_id})")
-                
-                # Step 3.1: Check if tournament already imported by chess_results_id
-                existing_tournament = Tournament.query.filter_by(chess_results_id=tournament_id).first()
-                if existing_tournament:
-                    logger.info(f"Tournament {tournament_id} already imported (ID match: {existing_tournament.name})")
-                    continue
-                
-                # Step 4: Check if tournament has ELO calculation
-                if not self.check_elo_calculation(tournament_url, tournament_id):
-                    logger.info(f"Skipping tournament {tournament_id} - no ELO calculation")
-                    continue
-                
-                # Step 5: Get tournament details and final table URL
-                tournament_details = self.get_tournament_details(tournament_url, tournament_id)
-                if not tournament_details:
-                    logger.warning(f"Could not get details for tournament {tournament_id}")
-                    continue
-                
-                # Step 6: Download Excel export
-                excel_file = self.download_excel_export(tournament_details)
-                if not excel_file:
-                    logger.warning(f"Could not download Excel file for tournament {tournament_id}")
-                    continue
-                
-                # Step 7: Import tournament using the tournament_importer module
-                result = self.import_tournament_from_excel_file(excel_file, tournament_name, tournament_id)
-                
-                # Clean up the temporary file
-                if os.path.exists(excel_file):
-                    os.remove(excel_file)
-                
-                if result.get('success'):
-                    processed_count += 1
-                    logger.info(f"Successfully processed tournament {tournament_id}")
-                else:
-                    logger.warning(f"Failed to import tournament {tournament_id}: {result.get('reason', 'unknown error')}")
-                
-                # Add a small delay to be respectful to the server
-                time.sleep(2)
-            
-            logger.info(f"Crawling completed. Successfully processed {processed_count} new tournaments")
-            return processed_count
-            
-        except Exception as e:
-            logger.error(f"Error in crawling process: {str(e)}")
-            return 0
-
-    def get_team_composition_url(self, tournament_url, tournament_id):
-        """
-        Navigate to tournament page and find the "Team Composition with round-results" link
-        This requires first clicking "Show tournament details" to reveal navigation
-        """
-        try:
-            logger.info(f"🔍 Navigating to find team composition link for tournament {tournament_id}...")
-            
-            # Get the main tournament page first (this should handle "Show tournament details")
-            response = self.session.get(tournament_url)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Check if we need to submit "Show tournament details" form
-            details_button = soup.find('input', {'name': 'cb_alleDetails', 'type': 'submit'}) or \
-                            soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
-            
-            if details_button:
-                logger.info(f"   📋 Found 'Show tournament details' button for {tournament_id}, submitting...")
-                
-                # Get form data for submission
-                form = details_button.find_parent('form')
-                if form:
-                    form_data = {}
-                    
-                    # Get all hidden inputs
-                    for hidden_input in form.find_all('input', type='hidden'):
-                        name = hidden_input.get('name')
-                        value = hidden_input.get('value', '')
-                        if name:
-                            form_data[name] = value
-                    
-                    # Add the button click
-                    button_name = details_button.get('name', 'cb_alleDetails')
-                    button_value = details_button.get('value', 'Show tournament details')
-                    form_data[button_name] = button_value
-                    
-                    # Submit the form
-                    response = self.session.post(tournament_url, data=form_data)
-                    response.raise_for_status()
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    logger.info(f"   ✅ Successfully revealed tournament navigation for {tournament_id}")
-            
-            # Now look for team composition links
-            logger.info(f"   🔍 Looking for team composition links for {tournament_id}...")
-            
-            # Common patterns for team composition with round results
-            composition_patterns = [
-                r'team.*composition.*round.*result',
-                r'mannschaftsaufstellung.*runden.*ergebnis',
-                r'team.*comp.*round',
-                r'aufstellung.*runden',
-                r'composition.*round',
-                r'team.*round.*result'
-            ]
-            
-            # Look for links with these patterns
-            all_links = soup.find_all('a', href=True)
-            
-            for link in all_links:
-                link_text = link.get_text(strip=True).lower()
-                href = link.get('href')
-                
-                # Check text patterns
-                for pattern in composition_patterns:
-                    if re.search(pattern, link_text, re.IGNORECASE):
-                        composition_url = href if href.startswith('http') else urljoin(tournament_url, href)
-                        logger.info(f"   ✅ Found team composition link for {tournament_id}: {link_text}")
-                        return composition_url
-            
-            # Alternative: Look for art=20 parameter which is often used for team composition
-            logger.info(f"   🔍 Looking for art=20 (team composition) links for {tournament_id}...")
-            for link in all_links:
-                href = link.get('href')
-                if 'art=20' in href:
-                    composition_url = href if href.startswith('http') else urljoin(tournament_url, href)
-                    logger.info(f"   ✅ Found art=20 team composition link for {tournament_id}")
-                    return composition_url
-            
-            # Try constructing the URL manually
-            logger.info(f"   🔧 Attempting to construct team composition URL for {tournament_id}...")
-            if '?' in tournament_url:
-                base_url = tournament_url.split('?')[0]
-            else:
-                base_url = tournament_url
-            
-            # Try common team composition URL patterns
-            test_urls = [
-                f"{base_url}?art=20",  # Team composition
-                f"{base_url}?art=20&prt=1",  # Team composition with details
-                f"{base_url}?art=20&lan=1",  # Team composition in English
-            ]
-            
-            for test_url in test_urls:
-                try:
-                    test_response = self.session.get(test_url)
-                    if test_response.status_code == 200:
-                        # Check if this page contains team/player data
-                        test_content = test_response.text.lower()
-                        if any(keyword in test_content for keyword in ['team', 'mannschaft', 'player', 'spieler']):
-                            logger.info(f"   ✅ Found working team composition URL for {tournament_id}: {test_url}")
-                            return test_url
-                except:
-                    continue
-            
-            logger.warning(f"   ❌ Could not find team composition with round-results link for {tournament_id}")
-            return None
-            
-        except Exception as e:
-            logger.error(f"   ❌ Error finding team composition URL for {tournament_id}: {e}")
-            return None
-
-    def download_team_composition_excel(self, team_composition_url, tournament_id):
-        """
-        Download Excel export from the team composition page
-        """
-        try:
-            logger.info(f"📊 Downloading Excel from team composition page for tournament {tournament_id}...")
-            
-            # Navigate to team composition page
-            response = self.session.get(team_composition_url)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Check for "Show tournament details" button on this page too
-            details_button = soup.find('input', {'value': re.compile(r'Show tournament details', re.IGNORECASE)})
-            if details_button:
-                logger.info(f"   📋 Found 'Show tournament details' on team composition page for {tournament_id}, submitting...")
-                
-                form = details_button.find_parent('form')
-                if form:
-                    form_data = {}
-                    
-                    # Get all hidden inputs
-                    for hidden_input in form.find_all('input', type='hidden'):
-                        name = hidden_input.get('name')
-                        value = hidden_input.get('value', '')
-                        if name:
-                            form_data[name] = value
-                    
-                    # Add the button click
-                    button_name = details_button.get('name')
-                    button_value = details_button.get('value')
-                    if button_name:
-                        form_data[button_name] = button_value
-                    
-                    # Submit the form
-                    response = self.session.post(team_composition_url, data=form_data)
-                    response.raise_for_status()
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    logger.info(f"   ✅ Revealed team composition details for {tournament_id}")
-            
-            # Look for Excel export link
-            logger.info(f"   🔍 Looking for Excel export link for {tournament_id}...")
-            excel_links = soup.find_all('a', string=re.compile(r'excel|xlsx|xls', re.IGNORECASE))
-            if not excel_links:
-                # Try href patterns
-                excel_links = soup.find_all('a', href=re.compile(r'excel=', re.IGNORECASE))
-            
-            excel_url = None
-            if excel_links:
-                href = excel_links[0].get('href')
-                excel_url = href if href.startswith('http') else urljoin(team_composition_url, href)
-                logger.info(f"   ✅ Found Excel export link for {tournament_id}: {excel_url}")
-            else:
-                # Try to construct Excel URL using the base URL pattern
-                logger.info(f"   🔧 Constructing Excel export URL for {tournament_id}...")
-                base_url = team_composition_url.split('?')[0] if '?' in team_composition_url else team_composition_url
-                
-                # Try different Excel export patterns for team composition
-                test_excel_urls = [
-                    f"{base_url}?lan=1&art=1&prt=4&excel=2010",  # Team composition with Excel
-                    f"{base_url}?art=1&excel=2010",              # Simplified version
-                    f"{base_url}?art=1&prt=4&excel=2010",        # Without language parameter
-                ]
-                
-                for test_url in test_excel_urls:
-                    try:
-                        test_response = self.session.get(test_url)
-                        if test_response.status_code == 200:
-                            # Check if it's actually an Excel file
-                            content_type = test_response.headers.get('content-type', '').lower()
-                            if ('excel' in content_type or 'spreadsheet' in content_type or 
-                                test_response.content.startswith(b'PK')):  # Excel files start with PK
-                                excel_url = test_url
-                                logger.info(f"   ✅ Found working Excel URL for {tournament_id}: {excel_url}")
-                                break
-                    except:
-                        continue
-            
-            if not excel_url:
-                logger.warning(f"   ❌ Could not find valid Excel export URL for {tournament_id}")
-                return None
-            
-            # Download the Excel file
-            logger.info(f"   📥 Downloading Excel file for {tournament_id}...")
-            excel_response = self.session.get(excel_url)
-            excel_response.raise_for_status()
-            
-            # Verify it's actually an Excel file
-            content_type = excel_response.headers.get('content-type', '').lower()
-            if not ('excel' in content_type or 'spreadsheet' in content_type or 
-                    excel_response.content.startswith(b'PK')):
-                logger.warning(f"   ❌ Downloaded file is not Excel format for {tournament_id} (Content-Type: {content_type})")
-                # Check if it's HTML (common error case)
-                if excel_response.content.startswith(b'<!DOCTYPE') or b'<html' in excel_response.content[:100]:
-                    logger.warning(f"   ⚠️  Downloaded file appears to be HTML for {tournament_id}, Excel export may not be available")
-                return None
-            
-            # Save to temporary file
-            filename = f"team_composition_{tournament_id}.xlsx"
-            filepath = os.path.join('/tmp', filename)
-            
-            with open(filepath, 'wb') as f:
-                f.write(excel_response.content)
-            
-            logger.info(f"   ✅ Downloaded Excel file for {tournament_id}: {filepath}")
-            return filepath
-            
-        except Exception as e:
-            logger.error(f"   ❌ Error downloading team composition Excel for {tournament_id}: {e}")
-            return None
-
-
-def run_crawler():
-    """Standalone function to run the crawler"""
-    crawler = ChessResultsCrawler()
-    return crawler.crawl_finished_tournaments()
-
-
-def setup_logging():
-    """Setup logging for the crawler"""
-    log_dir = os.path.join(os.path.dirname(__file__), 'logs')
-    os.makedirs(log_dir, exist_ok=True)
-    
-    log_file = os.path.join(log_dir, 'crawler.log')
-    
-    # Create file handler
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.INFO)
-    
-    # Create console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    
-    # Create formatter
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
-    
-    # Add handlers to logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-
-if __name__ == "__main__":
-    # For standalone execution
-    setup_logging()
-    
-    try:
-        from app import create_app
-        
-        app = create_app()
-        with app.app_context():
-            logger.info("Starting scheduled crawler run")
-            processed = run_crawler()
-            logger.info(f"Crawler run completed. Processed {processed} tournaments")
-    except Exception as e:
-        logger.error(f"Failed to run crawler: {str(e)}")
-        raise

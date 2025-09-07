@@ -83,36 +83,6 @@ def find_existing_player(name, shuffling=False):
 
     return None
 
-
-def parse_tournament_metadata(df, tournament_name=None, location=None, date=None):
-    """Parse tournament metadata from Excel file"""
-    # Tournament name is usually on the second line (index 1)
-    if not tournament_name:
-        second_row = df.iloc[1]
-        values = [str(v).strip() for v in second_row if pd.notnull(v)]
-        if len(values) >= 1:
-            tournament_name = values[0].strip()
-        else:
-            raise ValueError("No tournament name found")
-
-    # Look for location and date in the file if not provided
-    if not location or not date:
-        for idx, row in df.iterrows():
-            row_str = str(row.values[0]) if len(row.values) > 0 else ""
-            
-            if not location and row_str.startswith('Ort :'):
-                location = row_str.split(':', 1)[1].strip()
-                
-            if not date and row_str.startswith('Datum :'):
-                date_str = row_str.split(':', 1)[1].strip()
-                try:
-                    date = datetime.strptime(date_str, '%d.%m.%Y').date()
-                except ValueError:
-                    pass
-
-    return tournament_name, location, date
-
-
 def find_header_row(df):
     """Find the row containing column headers"""
     for idx, row in df.iterrows():
@@ -844,41 +814,22 @@ def parse_cross_table_games(cross_table_file, ranked_players, tournament):
         return 0
 
 
-def import_tournament_from_excel(file_path, tournament_name=None, location=None, date=None, checksum=None, chess_results_id=None, chess_results_url=None):
-    """
-    Import a tournament from an Excel file.
-    
-    Args:
-        file_path: Path to the Excel file
-        tournament_name: Tournament name (will be extracted from file if not provided)
-        location: Tournament location (will be extracted from file if not provided)
-        date: Tournament date (will be extracted from file if not provided)
-        checksum: File checksum to prevent duplicate imports
-        
-    Returns:
-        dict: Import results with tournament info and game count
-    """
+def import_tournament_from_excel(file_path, tournament_details):
     try:
         # Load Excel file
         df = pd.read_excel(file_path, header=None)
         
         # Generate checksum if not provided
-        if not checksum:
+        if not tournament_details.get('checksum'):
             sha256 = hashlib.sha256()
             with open(file_path, 'rb') as f:
                 while chunk := f.read(8192):
                     sha256.update(chunk)
-            checksum = sha256.hexdigest()
+            tournament_details['checksum'] = sha256.hexdigest()
 
         # Check if tournament already imported
-        if Tournament.query.filter_by(checksum=checksum).first():
+        if Tournament.query.filter_by(checksum=tournament_details['checksum']).first():
             raise ValueError('Tournament already imported')
-
-        # Parse metadata
-        tournament_name, location, date = parse_tournament_metadata(df, tournament_name, location, date)
-        
-        if not date:
-            raise ValueError("No tournament date found or provided")
         
         # Find header row and parse structure
         header_row_idx = find_header_row(df)
@@ -909,16 +860,17 @@ def import_tournament_from_excel(file_path, tournament_name=None, location=None,
             print(f"Warning: No players from this tournament could be mapped to existing players. Importing tournament anyway.")
 
         # Create tournament
-        print(f"Creating tournament: {tournament_name}")
+        print(f"Creating tournament: {tournament_details.get('name')}")
         tournament = Tournament(
-            name=tournament_name, 
-            checksum=checksum, 
-            date=date, 
-            location=location,
+            name=tournament_details.get('name'), 
+            checksum=tournament_details.get('checksum'), 
+            date=tournament_details.get('date'), 
+            location=tournament_details.get('location'),
             is_team=(result_format == 'team'),
-            chess_results_id=chess_results_id,
-            chess_results_url=chess_results_url,
-            imported_at=datetime.now() if chess_results_id else None
+            chess_results_id=tournament_details.get('chess_results_id'),
+            chess_results_url=tournament_details.get('chess_results_url'),
+            rounds=tournament_details.get('number_of_rounds'),
+            imported_at=datetime.now()
         )
         db.session.add(tournament)
         db.session.flush()
@@ -954,9 +906,9 @@ def import_tournament_from_excel(file_path, tournament_name=None, location=None,
         return {
             'success': True,
             'tournament_id': tournament.id,
-            'tournament_name': tournament_name,
-            'location': location,
-            'date': date.isoformat() if date else None,
+            'tournament_name': tournament_details.get('name'),
+            'location': tournament_details.get('location'),
+            'date': tournament_details.get('date').isoformat() if tournament_details.get('date') else None,
             'imported_games': imported_games,
             'imported_players': len(ranked_players),
             'mapped_players': mapped_players_count

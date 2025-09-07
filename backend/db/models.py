@@ -50,19 +50,19 @@ class Tournament(db.Model):
     __tablename__ = 'tournaments'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(80), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
     checksum = db.Column(db.String(64), nullable=False, unique=True)
     date = db.Column(db.Date, nullable=False)
-    location = db.Column(db.String(120), nullable=True)
+    location = db.Column(db.String(150), nullable=True)
     is_team = db.Column(db.Boolean, nullable=False, default=False)
-    
-    # Chess-results.com specific fields
     chess_results_id = db.Column(db.String(20), nullable=True, unique=True)  # Tournament ID from chess-results.com
-    chess_results_url = db.Column(db.String(200), nullable=True)  # Original URL
+    chess_results_url = db.Column(db.String(150), nullable=True)  # Original URL
     rounds = db.Column(db.Integer, nullable=True)  # Number of rounds
-    time_control = db.Column(db.String(50), nullable=True)  # Time control info
+    time_control = db.Column(db.String(100), nullable=True)  # Time control info
     organizer = db.Column(db.String(120), nullable=True)  # Tournament organizer
     imported_at = db.Column(db.DateTime, nullable=True)  # When it was imported from chess-results
+    elo_rating = db.Column(db.String(100), nullable=True)  # e.g., "FIDE", "National", etc.
+    elo_rated_rounds = db.Column(db.String(50), nullable=True)  # e.g., "3-5"
     
     tournament_players = db.relationship('TournamentPlayer', back_populates='tournament', cascade="all, delete-orphan")
     players = db.relationship(

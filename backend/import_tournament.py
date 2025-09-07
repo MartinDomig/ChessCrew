@@ -15,9 +15,12 @@ Usage:
 import sys
 import os
 import argparse
+import hashlib
 import logging
 import re
 from datetime import datetime
+from tournament_importer import import_tournament_from_excel
+from db.models import db, Tournament, TournamentPlayer, Player
 
 # Add the backend directory to Python path
 backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -46,257 +49,105 @@ def extract_tournament_id(url_or_id):
     
     raise ValueError(f"Could not extract tournament ID from: {url_or_id}")
 
-def is_team_tournament(crawler, tournament_url, tournament_id):
-    """
-    Auto-detect if tournament is a team tournament by checking the tournament title and content.
-    """
+def import_tournament_from_excel_file(self, filepath, tournament_details):
+    """Import tournament using the tournament_importer module"""
     try:
-        logger.info(f"🔍 Auto-detecting tournament type for {tournament_id}...")
-        
-        # Get the main tournament page
-        response = crawler.session.get(tournament_url)
-        if response.status_code != 200:
-            logger.warning(f"Could not access tournament page: {response.status_code}")
-            return False
-            
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Check tournament title and page content for team indicators
-        page_text = soup.get_text().lower()
-        title = soup.title.string.lower() if soup.title else ""
-        
-        # Strong team tournament indicators
-        team_indicators = [
-            'mannschaftsmeisterschaft',
-            'mannschaftswettbewerb', 
-            'team championship',
-            'team competition',
-            'liga',  # Often indicates team leagues
-            'teamturnier'
-        ]
-        
-        # Check title first (most reliable)
-        for indicator in team_indicators:
-            if indicator in title:
-                logger.info(f"✅ Team tournament detected for {tournament_id} - found '{indicator}' in title")
-                return True
-        
-        # Check page content
-        for indicator in team_indicators:
-            if indicator in page_text:
-                logger.info(f"✅ Team tournament detected for {tournament_id} - found '{indicator}' in content")
-                return True
-        
-        # Look for team composition links as additional confirmation
-        team_composition_keywords = [
-            'teamaufstellung mit einzelergebnissen',
-            'team composition with round results',
-            'teamaufstellung',
-            'team composition'
-        ]
-        
-        links = soup.find_all('a', href=True)
-        for link in links:
-            link_text = link.get_text(strip=True).lower()
-            if any(keyword in link_text for keyword in team_composition_keywords):
-                logger.info(f"✅ Team tournament detected for {tournament_id} - found team composition link")
-                return True
-        
-        logger.info(f"❌ Individual tournament detected for {tournament_id}")
-        return False
-            
-    except Exception as e:
-        logger.warning(f"Error detecting tournament type: {e}")
-        logger.info("🤷 Defaulting to individual tournament")
-        return False
+        # Generate checksum for the file
+        sha256 = hashlib.sha256()
+        with open(filepath, 'rb') as f:
+            while chunk := f.read(8192):
+                sha256.update(chunk)
+        checksum = sha256.hexdigest()
 
-def import_single_tournament(tournament_id, force=False):
-    """Import a single tournament by ID"""
+        # Check if tournament already imported
+        if Tournament.query.filter_by(checksum=checksum).first():
+            logger.info(f"Tournament {tournament_details['name']} already imported (checksum match)")
+            return {'success': False, 'reason': 'already_imported'}
+
+        tournament_details['checksum'] = checksum
+
+        # Use the tournament_importer module
+        result = import_tournament_from_excel(filepath=filepath, tournament_details=tournament_details)
+
+        logger.info(f"Successfully imported tournament {tournament_id}: {result['tournament_name']}")
+        logger.info(f"  Imported {result['imported_players']} players, {result['imported_games']} games")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error importing tournament {tournament_id}: {str(e)}")
+        return {'success': False, 'reason': str(e)}
+
+
+def import_tournament(crawler, tournament_id, force=False):
+    """Import tournament by ID"""
     try:
         # Import here to avoid issues with Flask app context
         from app import create_app
-        from chess_results_crawler import ChessResultsCrawler
         from db.models import Tournament, TournamentPlayer, Game, db
         
         # Create Flask app context
         app = create_app()
         
         with app.app_context():
-            crawler = ChessResultsCrawler()
-            
             # Build the tournament URL
             tournament_url = f"https://chess-results.com/tnr{tournament_id}.aspx"
-            logger.info(f"Importing tournament: {tournament_url}")
-            
-            # Step 1: Check if tournament already imported
-            existing_tournament = Tournament.query.filter_by(chess_results_id=tournament_id).first()
-            if existing_tournament and not force:
-                logger.warning(f"Tournament {tournament_id} already imported: {existing_tournament.name}")
-                return {
-                    'success': False,
-                    'error': 'Tournament already imported',
-                    'existing_tournament': existing_tournament.name
-                }
-            elif existing_tournament and force:
-                logger.info(f"🗑️  Force mode: Removing existing tournament {tournament_id}: {existing_tournament.name}")
-                # Delete associated games and players first
-                TournamentPlayer.query.filter_by(tournament_id=existing_tournament.id).delete()
-                Game.query.filter_by(tournament_id=existing_tournament.id).delete()
-                db.session.delete(existing_tournament)
-                db.session.commit()
-                logger.info("✅ Existing tournament data removed")
-            
-            # Step 2: Login to chess-results.com
-            if not crawler.login():
-                logger.error("Failed to login to chess-results.com")
-                return {'success': False, 'error': 'Failed to login to chess-results.com'}
-            
-            # Step 3: Get tournament details (this now includes ELO check)
+            logger.info(f"Reading tournament details from: {tournament_url}")
+
+            # Get tournament details
             tournament_details = crawler.get_tournament_details(tournament_url, tournament_id)
             if not tournament_details:
                 logger.error(f"Could not get details for tournament {tournament_id}")
                 return {'success': False, 'error': 'Could not get tournament details'}
-            
-            tournament_name = tournament_details.get('name', f'Tournament {tournament_id}')
-            logger.info(f"Tournament name: {tournament_name}")
-            
-            # Step 4: Download Excel export
+                        
+            # Download Excel export
             excel_file = crawler.download_excel_export(tournament_details)
+
             if not excel_file:
                 logger.error(f"Could not download Excel file for tournament {tournament_id}")
                 return {'success': False, 'error': 'Could not download Excel file'}
             
             logger.info(f"Downloaded Excel file: {excel_file}")
+
+            # write tournament details json file next to excel file
+            import json
+            details_file = excel_file.replace('.xlsx', '_details.json')
+            with open(details_file, 'w', encoding='utf-8') as f:
+                json.dump(tournament_details, f, ensure_ascii=False, indent=4)
+            logger.info(f"Wrote tournament details to: {details_file}")
             
-            # Step 5: Import tournament using the tournament_importer module
+            # Convert date string to Python date object if needed
+            if 'date' in tournament_details and isinstance(tournament_details['date'], str):
+                try:
+                    from datetime import datetime
+                    tournament_details['date'] = datetime.strptime(tournament_details['date'], '%Y-%m-%d').date()
+                except ValueError as e:
+                    logger.warning(f"Could not parse date '{tournament_details['date']}': {e}")
+                    tournament_details['date'] = None
+            
+            # Import tournament using the tournament_importer module
             try:
-                result = crawler.import_tournament_from_excel_file(excel_file, tournament_name, tournament_id)
+                result = import_tournament_from_excel(excel_file, tournament_details)
                 
                 # Clean up the temporary file
-                if os.path.exists(excel_file):
-                    os.remove(excel_file)
+                # if os.path.exists(excel_file):
+                #    os.remove(excel_file)
                 
                 return result
                 
             except Exception as import_error:
                 # Clean up the temporary file even if import fails
-                if os.path.exists(excel_file):
-                    os.remove(excel_file)
+                # if os.path.exists(excel_file):
+                #    os.remove(excel_file)
                 raise import_error
                 
     except Exception as e:
         logger.error(f"Error importing tournament {tournament_id}: {str(e)}", exc_info=True)
         return {'success': False, 'error': str(e)}
 
-def import_team_tournament(tournament_id, force=False):
-    """Import a team tournament using team composition with individual games"""
-    try:
-        from app import create_app
-        from chess_results_crawler import ChessResultsCrawler
-        from db.models import Tournament, TournamentPlayer, Game, db
-        from tournament_importer import import_tournament_from_excel
-        
-        # Create Flask app context
-        app = create_app()
-        
-        with app.app_context():
-            crawler = ChessResultsCrawler()
-            
-            # Build the tournament URL
-            tournament_url = f"https://chess-results.com/tnr{tournament_id}.aspx"
-            logger.info(f"Importing team tournament: {tournament_url}")
-            
-            # Step 1: Check if tournament already imported
-            existing_tournament = Tournament.query.filter_by(chess_results_id=tournament_id).first()
-            if existing_tournament and not force:
-                logger.warning(f"Tournament {tournament_id} already imported: {existing_tournament.name}")
-                return {
-                    'success': False,
-                    'error': 'Tournament already imported',
-                    'existing_tournament': existing_tournament.name
-                }
-            elif existing_tournament and force:
-                logger.info(f"🗑️  Force mode: Removing existing tournament {tournament_id}: {existing_tournament.name}")
-                # Delete associated games and players first
-                TournamentPlayer.query.filter_by(tournament_id=existing_tournament.id).delete()
-                Game.query.filter_by(tournament_id=existing_tournament.id).delete()
-                db.session.delete(existing_tournament)
-                db.session.commit()
-                logger.info("✅ Existing tournament data removed")
-            
-            # Step 2: Login to chess-results.com
-            if not crawler.login():
-                logger.error("Failed to login to chess-results.com")
-                return {'success': False, 'error': 'Failed to login to chess-results.com'}
-            
-            # Step 3: Get tournament details
-            tournament_details = crawler.get_tournament_details(tournament_url, tournament_id)
-            if not tournament_details:
-                logger.error(f"Could not get details for tournament {tournament_id}")
-                return {'success': False, 'error': 'Could not get tournament details'}
-            
-            tournament_name = tournament_details.get('name', f'Tournament {tournament_id}')
-            logger.info(f"Team tournament name: {tournament_name}")
-            
-            # Step 4: Navigate to team composition page
-            logger.info("🔍 Looking for team composition with round-results...")
-            team_composition_url = crawler.get_team_composition_url(tournament_url, tournament_id)
-            
-            if not team_composition_url:
-                logger.error("❌ Could not find team composition with round-results page!")
-                return {'success': False, 'error': 'Could not find team composition page'}
-            
-            logger.info(f"✅ Found team composition page: {team_composition_url}")
-            
-            # Step 5: Download Excel export from team composition page
-            logger.info("📊 Downloading team composition Excel export...")
-            excel_file = crawler.download_team_composition_excel(team_composition_url, tournament_id)
-            
-            if not excel_file:
-                logger.error("❌ Failed to download team composition Excel!")
-                return {'success': False, 'error': 'Could not download team composition Excel'}
-            
-            logger.info(f"✅ Downloaded team composition Excel: {excel_file}")
-            
-            # Step 6: Import tournament using the tournament_importer module
-            try:
-                result = import_tournament_from_excel(
-                    excel_file, tournament_name, 
-                    date=datetime.now(),
-                    chess_results_id=tournament_id
-                )
-                
-                # Extract values from result dictionary
-                ranked_players = result.get('ranked_players', [])
-                game_count = result.get('imported_games', 0)
-                mapped_players = result.get('mapped_players', 0)
-                
-                # Clean up the temporary file
-                if os.path.exists(excel_file):
-                    os.remove(excel_file)
-                
-                return {
-                    'success': True,
-                    'tournament_name': tournament_name,
-                    'location': 'Unknown',
-                    'date': datetime.now().strftime('%Y-%m-%d'),
-                    'imported_players': len(ranked_players),
-                    'imported_games': game_count,
-                    'mapped_players': mapped_players
-                }
-                
-            except Exception as import_error:
-                # Clean up the temporary file even if import fails
-                if os.path.exists(excel_file):
-                    os.remove(excel_file)
-                raise import_error
-                
-    except Exception as e:
-        logger.error(f"Error importing team tournament {tournament_id}: {str(e)}", exc_info=True)
-        return {'success': False, 'error': str(e)}
-
 def main():
+    from chess_results_crawler import ChessResultsCrawler
+
     parser = argparse.ArgumentParser(
         description='Import a specific tournament from chess-results.com',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -317,8 +168,6 @@ Examples:
     parser.add_argument('--id', help='Tournament ID')
     parser.add_argument('--force', action='store_true', 
                        help='Force import even if tournament already exists')
-    parser.add_argument('--team', action='store_true', 
-                       help='Import as team tournament with individual games from Team Composition page')
     
     args = parser.parse_args()
     
@@ -332,45 +181,15 @@ Examples:
         tournament_id = extract_tournament_id(tournament_input)
         logger.info(f"Tournament ID: {tournament_id}")
         
-        # Auto-detect tournament type unless explicitly specified
-        tournament_url = f"https://chess-results.com/tnr{tournament_id}.aspx"
-        
-        if args.team:
-            logger.info("🏁 Team tournament mode explicitly requested")
-            is_team = True
-        else:
-            # Auto-detect tournament type
-            from chess_results_crawler import ChessResultsCrawler
-            crawler = ChessResultsCrawler()
-            if not crawler.login():
-                logger.error("Failed to login for tournament type detection")
-                sys.exit(1)
-            is_team = is_team_tournament(crawler, tournament_url, tournament_id)
-        
-        # Import the tournament using the appropriate method
-        if is_team:
-            logger.info("🏆 Importing as team tournament...")
-            result = import_team_tournament(tournament_id, force=args.force)
-        else:
-            logger.info("👤 Importing as individual tournament...")
-            result = import_single_tournament(tournament_id, force=args.force)
-        
-        if result and result.get('success'):
-            logger.info(f"✓ Successfully imported tournament:")
-            logger.info(f"  Name: {result.get('tournament_name')}")
-            logger.info(f"  Location: {result.get('location')}")
-            logger.info(f"  Date: {result.get('date')}")
-            logger.info(f"  Players: {result.get('imported_players')}")
-            logger.info(f"  Games: {result.get('imported_games')}")
-            logger.info(f"  Mapped players: {result.get('mapped_players')}")
-            logger.info("Import completed successfully!")
-            sys.exit(0)
-        else:
-            error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
-            logger.error(f"✗ Failed to import tournament: {error_msg}")
-            logger.error("Import failed!")
+        crawler = ChessResultsCrawler()
+        if not crawler.login():
+            logger.error("Failed to login for tournament type detection")
             sys.exit(1)
-            
+        
+        import_tournament(crawler, tournament_id, force=args.force)
+        logger.info("Tournament import completed successfully")
+        sys.exit(0)
+        
     except ValueError as e:
         logger.error(f"Invalid tournament input: {e}")
         sys.exit(1)
