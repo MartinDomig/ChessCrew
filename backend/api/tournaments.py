@@ -33,16 +33,45 @@ def format_tournament_player(tp):
         } if tp.player else None
     }
 
+def format_tournament(t):
+    """Helper function to format tournament data consistently"""
+    return {
+        'id': t.id,
+        'name': t.name,
+        'date': t.date,
+        'location': t.location,
+        'is_team': t.is_team,
+        'chess_results_url': t.chess_results_url,
+        'rounds': t.rounds,
+        'time_control': t.time_control,
+        'imported_at': t.imported_at.isoformat() if t.imported_at else None,
+        'elo_rating': t.elo_rating,
+        'elo_rated_rounds': t.elo_rated_rounds
+    }
+
+def format_game(g):
+    """Helper function to format game data consistently"""
+    return {
+        'id': g.id,
+        'tournament_id': g.tournament_id,
+        'player_id': g.player_id,
+        'opponent_id': g.opponent_id,
+        'player_color': g.player_color,
+        'result': g.result,
+        'round_number': g.round_number,
+        'pgn': g.pgn
+    }
+
 # --- Tournament Endpoints ---
 @tournaments_bp.route('/tournaments', methods=['GET'])
 def list_tournaments():
     tournaments = Tournament.query.order_by(Tournament.date.desc()).all()
-    return jsonify([{'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location, 'is_team': t.is_team} for t in tournaments])
+    return jsonify([format_tournament(t) for t in tournaments])
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['GET'])
 def get_tournament(tournament_id):
     t = Tournament.query.get_or_404(tournament_id)
-    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location, 'is_team': t.is_team})
+    return jsonify(format_tournament(t))
 
 @tournaments_bp.route('/tournaments', methods=['POST'])
 @admin_required
@@ -54,7 +83,7 @@ def create_tournament():
     )
     db.session.add(t)
     db.session.commit()
-    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location, 'is_team': t.is_team}), 201
+    return jsonify(format_tournament(t)), 201
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['PUT'])
 @admin_required
@@ -73,7 +102,7 @@ def update_tournament(tournament_id):
     t.location = data.get('location', t.location)
     t.is_team = data.get('is_team', t.is_team)
     db.session.commit()
-    return jsonify({'id': t.id, 'name': t.name, 'date': t.date, 'location': t.location, 'is_team': t.is_team})
+    return jsonify(format_tournament(t))
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>', methods=['DELETE'])
 @admin_required
@@ -136,32 +165,12 @@ def delete_tournament_player(tournament_id, player_id):
 @tournaments_bp.route('/tournaments/<int:tournament_id>/games', methods=['GET'])
 def list_games(tournament_id):
     games = Game.query.filter_by(tournament_id=tournament_id).all()
-    return jsonify([
-        {
-            'id': g.id,
-            'tournament_id': g.tournament_id,
-            'player_id': g.player_id,
-            'opponent_id': g.opponent_id,
-            'player_color': g.player_color,
-            'result': g.result,
-            'round_number': g.round_number,
-            'pgn': g.pgn
-        } for g in games
-    ])
+    return jsonify([format_game(g) for g in games])
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>/games/<int:game_id>', methods=['GET'])
 def get_game(tournament_id, game_id):
     g = Game.query.filter_by(tournament_id=tournament_id, id=game_id).first_or_404()
-    return jsonify({
-            'id': g.id,
-            'tournament_id': g.tournament_id,
-            'player_id': g.player_id,
-            'opponent_id': g.opponent_id,
-            'player_color': g.player_color,
-            'result': g.result,
-            'round_number': g.round_number,
-            'pgn': g.pgn
-    })
+    return jsonify(format_game(g))
 
 @tournaments_bp.route('/tournaments/<int:tournament_id>/games', methods=['POST'])
 @admin_required

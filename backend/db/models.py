@@ -59,7 +59,6 @@ class Tournament(db.Model):
     chess_results_url = db.Column(db.String(150), nullable=True)  # Original URL
     rounds = db.Column(db.Integer, nullable=True)  # Number of rounds
     time_control = db.Column(db.String(100), nullable=True)  # Time control info
-    organizer = db.Column(db.String(120), nullable=True)  # Tournament organizer
     imported_at = db.Column(db.DateTime, nullable=True)  # When it was imported from chess-results
     elo_rating = db.Column(db.String(100), nullable=True)  # e.g., "FIDE", "National", etc.
     elo_rated_rounds = db.Column(db.String(50), nullable=True)  # e.g., "3-5"
