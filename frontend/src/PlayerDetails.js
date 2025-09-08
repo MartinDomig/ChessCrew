@@ -182,6 +182,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
         <Typography variant="h5">
           {player.first_name}, {player.last_name} {countryCodeToFlag(player.citizen)} {player.female ? '♛' : '♚'} <CategoryChip player={player} />
           <TournamentStatsChip player={player} />
+          <TournamentStatsChip player={player} rated />
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 2 }}>
           {player.club}

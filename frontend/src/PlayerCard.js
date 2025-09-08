@@ -48,6 +48,7 @@ export default function PlayerCard({ player, onStatusChange, onTagClick, onCateg
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', mt: 0.5 }}>
           <CategoryChip player={player} onClick={onCategoryClick} />
           <TournamentStatsChip player={player} />
+          <TournamentStatsChip player={player} rated />
           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 0.5, overflow: 'hidden', minWidth: 80 }}>
             {player.tags && player.tags.map(tag => (
               <TagChip

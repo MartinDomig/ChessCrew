@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Chip } from '@mui/material';
-import { EmojiEvents } from '@mui/icons-material';
+import { EmojiEvents, Star } from '@mui/icons-material';
 
-export default function TournamentStatsChip({ player }) {
+export default function TournamentStatsChip({ player, rated = false }) {
   const [stats, setStats] = useState(null);
 
   // Helper function to format points with fractions
@@ -33,11 +33,11 @@ export default function TournamentStatsChip({ player }) {
     // Use only pre-loaded tournament stats
     if (player.tournament_stats) {
       setStats({
-        points: player.tournament_stats.total_points || 0,
-        games: player.tournament_stats.total_games || 0
+        points: rated ? player.tournament_stats.total_points_rated || 0 : player.tournament_stats.total_points || 0,
+        games: rated ? player.tournament_stats.total_games_rated || 0 : player.tournament_stats.total_games || 0
       });
     } else {
-      setStats({ points: 0, games: 0 });
+      setStats({ points: 0, games: 0,  });
     }
   }, [player?.id, player?.tournament_stats]);
 
@@ -49,11 +49,18 @@ export default function TournamentStatsChip({ player }) {
 
   return (
     <Chip
-      icon={<EmojiEvents fontSize="small" />}
+      icon={rated ? <Star fontSize="small" /> : <EmojiEvents fontSize="small" />}
       label={label}
       size="small"
       variant="outlined"
       color="white"
+      sx={rated ? {
+        borderColor: '#B8860B',
+        color: '#B8860B',
+        '& .MuiChip-icon': {
+          color: '#B8860B'
+        }
+      } : {}}
     />
   );
 }
