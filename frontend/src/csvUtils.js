@@ -1,5 +1,8 @@
 export function exportEmailList(players) {
-  if (!players || players.length === 0) return;
+  if (!players || players.length === 0) {
+    alert('Keine Spieler zum Exportieren gefunden.');
+    return;
+  }
   const header = ['First Name', 'Last Name', 'Email', 'Gender'];
   const rows = [];
   const emailRegex = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
@@ -12,7 +15,17 @@ export function exportEmailList(players) {
       }
     });
   });
-  if (rows.length === 0) return;
+  if (rows.length === 0) {
+    alert('Keine gültigen E-Mail-Adressen in der aktuellen Auswahl gefunden.');
+    return;
+  }
+  
+  // Show confirmation with count
+  const playerCount = players.length;
+  const emailCount = rows.length;
+  const confirmed = confirm(`${emailCount} E-Mail-Adresse${emailCount !== 1 ? 'n' : ''} von ${playerCount} Spieler${playerCount !== 1 ? 'n' : ''} exportieren?`);
+  if (!confirmed) return;
+  
   const csvContent = [header, ...rows]
     .map(row => row.map(field => {
       // Only quote if field contains comma, quote, or newline

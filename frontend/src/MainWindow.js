@@ -77,7 +77,7 @@ function useNavigationStack(initialStack = []) {
 }
 
 // Navigation renderer component
-function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading, sortBy, setSortBy }) {
+function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading, sortBy, setSortBy, filteredPlayers }) {
   if (!navObject) return null;
 
   const { type, data } = navObject;
@@ -119,7 +119,7 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
               )}
               <IconButton
                 color="primary"
-                onClick={() => exportEmailList(players)}
+                onClick={() => exportEmailList(filteredPlayers)}
                 size="small"
                 title="Export E-Mail Liste"
                 sx={{ p: 0.5 }}
@@ -261,7 +261,7 @@ function MainWindowContent({user}) {
   const handleImportClick = () => setImportOpen(true);
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
-  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading, sortBy, setSortBy} = usePlayerList();
+  const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading, sortBy, setSortBy, filteredPlayers} = usePlayerList();
   const {tournaments, reloadTournaments, hasStaleData: hasStaleTournamentData} = useTournamentList();
 
   // Initialize navigation stack with player list
@@ -441,6 +441,7 @@ function MainWindowContent({user}) {
                 playersLoading={playersLoading}
                 sortBy={sortBy}
                 setSortBy={setSortBy}
+                filteredPlayers={filteredPlayers}
               />
             </Box>
 
@@ -462,6 +463,7 @@ function MainWindowContent({user}) {
                 reloadPlayers={reloadPlayers}
                 reloadTournaments={reloadTournaments}
                 playersLoading={playersLoading}
+                filteredPlayers={filteredPlayers}
               />
             )}
           </>
@@ -484,6 +486,7 @@ function MainWindowContent({user}) {
             playersLoading={playersLoading}
             sortBy={sortBy}
             setSortBy={setSortBy}
+            filteredPlayers={filteredPlayers}
           />
         )}
       </Box>
