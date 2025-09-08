@@ -74,8 +74,8 @@ def calculate_player_tournament_stats(player_id):
     return {
         'total_points': total_points,
         'total_games': total_games,
-        'rated_total_points': total_rated_points,
-        'total_rated_games': total_rated_games
+        'total_points_rated': total_rated_points,
+        'total_games_rated': total_rated_games
     }
 
 def format_note(note):
