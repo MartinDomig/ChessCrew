@@ -120,6 +120,7 @@ def list_players():
             )
         ).filter(
             TournamentPlayer.player_id.in_(player_ids),
+            Tournament.elo_rating.is_(None),
             Tournament.date >= cutoff_date
         ).group_by(TournamentPlayer.player_id).all()
 
