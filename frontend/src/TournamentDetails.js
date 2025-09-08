@@ -17,6 +17,7 @@ import React, { useEffect, useState } from 'react';
 
 import { apiFetch } from './api';
 import TournamentResults from './TournamentResults';
+import TournamentTypeIndicator from './TournamentTypeIndicator';
 
 // Custom hook for tournament data management
 function useTournamentData(tournamentId) {
@@ -145,12 +146,12 @@ function TournamentHeader({ tournament, isEditing, editedTournament, onFieldChan
       title={
         isEditing ? (
           <TextField
-            fullWidth
-            label="Turniername"
-            value={editedTournament.name}
-            onChange={(e) => onFieldChange('name', e.target.value)}
-            variant="outlined"
-            size="small"
+          fullWidth
+          label="Turniername"
+          value={editedTournament.name}
+          onChange={(e) => onFieldChange('name', e.target.value)}
+          variant="outlined"
+          size="small"
           />
         ) : (
           tournament.name
@@ -167,7 +168,7 @@ function TournamentHeader({ tournament, isEditing, editedTournament, onFieldChan
           </IconButton>
         )
       }
-    />
+      />
   );
 }
 
@@ -236,7 +237,10 @@ function TournamentDetailsForm({ tournament, isEditing, editedTournament, onFiel
           <Typography variant="subtitle1">Datum: {formatDisplayDate(tournament.date)}</Typography>
           <Typography variant="body2">Ort: {tournament.location}</Typography>
           <Typography variant="body2">Teilnehmer: {participantCount}</Typography>
+          <Typography variant="body2">Runden: {tournament.rounds}</Typography>
           <Typography variant="body2">Typ: {tournament.is_team ? 'Mannschaftsturnier' : 'Einzelturnier'}</Typography>
+          <Typography variant="body2">Wertung: {tournament.elo_rating ? tournament.elo_rating : 'Keine'}</Typography>
+          <Typography variant="body2">Bedenkzeit: {tournament.time_control}</Typography>
         </>
       )}
     </CardContent>
@@ -276,6 +280,8 @@ function TournamentDetails({ tournament, onPlayerClick, onDelete, onUpdate }) {
   } = useEditMode(localTournament);
 
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+  console.log('TournamentDetails render', tournament);
 
   // Update local tournament state when prop changes
   useEffect(() => {
@@ -339,6 +345,7 @@ function TournamentDetails({ tournament, onPlayerClick, onDelete, onUpdate }) {
   return (
     <Box sx={{ p: 1, maxWidth: '100%' }}>
       <Card sx={{ mb: 2 }}>
+        <TournamentTypeIndicator tournament={localTournament} size="small" />
         <TournamentHeader
           tournament={localTournament}
           isEditing={isEditing}

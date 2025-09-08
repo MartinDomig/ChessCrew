@@ -3,6 +3,8 @@ import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import React from 'react';
+import TournamentTypeIndicator from './TournamentTypeIndicator';
+import { Box, Typography } from '@mui/material';
 
 function TournamentList({tournaments, onTournamentClick}) {
   // Sort tournaments: date descending, then name ascending
@@ -37,14 +39,30 @@ function TournamentList({tournaments, onTournamentClick}) {
       }
       const secondary =
           [tournament.location, dateStr].filter(Boolean).join(' • ');
-      return (<ListItem key = {tournament.id} disablePadding>
-              <ListItemButton onClick = {() => onTournamentClick(tournament)}>
-              <ListItemText primary = {tournament.name} secondary =
-               {
-                 secondary
-               } />
-            </ListItemButton>
-              </ListItem>
+      return (
+          <Box 
+            key={tournament.id} 
+            onClick={() => onTournamentClick(tournament)}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              py: 1,
+              ml: 2,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              cursor: 'pointer',
+              '&:hover': {
+                backgroundColor: 'action.hover'
+              }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+              <TournamentTypeIndicator tournament={tournament} size="small" />
+              <Typography variant="body2" sx={{ ml: 1 }}>{tournament.name}</Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{secondary}</Typography>
+          </Box>
         );
       })}
     </List>);

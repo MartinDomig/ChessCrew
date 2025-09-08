@@ -214,10 +214,10 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
           </Box>
           <TournamentList
             tournaments={tournaments}
-            onTournamentClick={(tournament) => onNavigate({
+            onTournamentClick={(tournament) => {console.log('### TournamentList click',tournament);onNavigate({
               type: NAV_TYPES.TOURNAMENT_DETAIL,
               data: { tournament }
-            })}
+            })}}
           />
         </Box>
       );
@@ -228,10 +228,10 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
           <PlayerDetails
             player={data.player}
             onPlayerUpdated={onPlayerUpdated}
-            onTournamentClick={(tournament, player) => onNavigate({
+            onTournamentClick={(tournament) => {console.log('### PlayerDetails click', tournament);onNavigate({
               type: NAV_TYPES.TOURNAMENT_DETAIL,
-              data: { tournament, fromPlayer: player }
-            })}
+              data: { tournament }
+            })}}
           />
         </Box>
       );

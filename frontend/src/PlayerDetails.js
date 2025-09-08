@@ -14,6 +14,7 @@ import { countryCodeToFlag } from './countryUtils';
 import ContactInfo from './ContactInfo';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
+import TournamentTypeIndicator from './TournamentTypeIndicator';
 
 export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamentClick }) {
   const [notes, setNotes] = useState([]);
@@ -309,12 +310,9 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
           {!tournamentsLoading && tournaments.length > 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {tournaments.map((tournament, index) => {
-                const dateStr = tournament.date 
-                  ? new Date(tournament.date).toLocaleDateString('de-DE')
-                  : '';
+                const dateStr = new Date(tournament.tournament.date).toLocaleDateString();
                 
-                const locationAndDate = [tournament.location, dateStr].filter(Boolean).join(' • ');
-                
+                const locationAndDate = [tournament.tournament.location, dateStr].filter(Boolean).join(' • ');
                 const resultText = [
                   tournament.rank && tournament.total_players ? `Rang ${tournament.rank}/${tournament.total_players}` : 
                   tournament.rank ? `Rang ${tournament.rank}` : null,
@@ -334,7 +332,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
                       },
                       transition: 'all 0.2s ease-in-out'
                     }}
-                    onClick={() => onTournamentClick && onTournamentClick({ id: tournament.tournament_id, name: tournament.tournament_name })}
+                    onClick={() => onTournamentClick && onTournamentClick(tournament.tournament)}
                   >
                     <CardContent sx={{ py: 2, position: 'relative' }}>
                       {tournamentEditing && (
@@ -342,7 +340,7 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent card click
-                            handleTournamentDisassociate(tournament.id, tournament.tournament_name);
+                            handleTournamentDisassociate(tournament.id, tournament.tournament.name);
                           }}
                           sx={{
                             position: 'absolute',
@@ -359,9 +357,12 @@ export default function PlayerDetailsCard({ player, onPlayerUpdated, onTournamen
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       )}
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'medium', pr: tournamentEditing ? 4 : 0 }}>
-                        {tournament.tournament_name}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: tournamentEditing ? 4 : 0 }}>
+                        <TournamentTypeIndicator tournament={tournament.tournament} size="small" />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
+                          {tournament.tournament.name}
+                        </Typography>
+                      </Box>
                       <Typography variant="body2" color="text.secondary" >
                         {locationAndDate || '-'}
                       </Typography>
