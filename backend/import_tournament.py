@@ -60,6 +60,12 @@ def import_tournament(crawler, tournament_id, force=False):
         app = create_app()
         
         with app.app_context():
+            # test if the tournament with the given ID exists in the database, abort if not --force'd
+            existing_tournament = Tournament.query.filter_by(id=tournament_id).first()
+            if existing_tournament and not force:
+                logger.error(f"Tournament {tournament_id} already exists in the database.")
+                return {'success': False, 'error': 'Tournament already exists'}
+
             # Build the tournament URL
             tournament_url = f"https://chess-results.com/tnr{tournament_id}.aspx"
             logger.info(f"Reading tournament details from: {tournament_url}")

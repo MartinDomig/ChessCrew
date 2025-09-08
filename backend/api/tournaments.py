@@ -42,6 +42,7 @@ def format_tournament(t):
         'date': t.date,
         'location': t.location,
         'is_team': t.is_team,
+        'chess_results_id': t.chess_results_id,
         'chess_results_url': t.chess_results_url,
         'rounds': t.rounds,
         'time_control': t.time_control,

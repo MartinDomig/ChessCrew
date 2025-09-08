@@ -867,7 +867,6 @@ def import_tournament_from_excel(file_path, tournament_details):
             except ValueError as e:
                 tournament_details['date'] = None
         
-
         # Create tournament
         print(f"Creating tournament: {tournament_details.get('name')}")
         tournament = Tournament(
