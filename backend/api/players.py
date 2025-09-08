@@ -35,10 +35,7 @@ KEY_TRANSLATIONS = {
 
 def calculate_player_tournament_stats(player_id):
     """Calculate tournament statistics for a given player."""
-    
-    # Tournament stats:
-    # Total points in last 360 days / Total games played in last 360 days
-
+ 
     # Calculate date 360 days ago
     cutoff_date = datetime.now().date() - timedelta(days=360)
     
@@ -58,10 +55,21 @@ def calculate_player_tournament_stats(player_id):
             # Count games where this TournamentPlayer is the player (not opponent)
             player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
             total_games += player_games
-    
+
+    # Same calculation, but this time for rated tournaments only (elo_rating is not empty)
+    rated_tournament_players = [tp for tp in tournament_players if tp.elo_rating is not None]
+    rated_total_points = sum(tp.points or 0 for tp in rated_tournament_players)
+    total_rated_games = 0
+    for tp in rated_tournament_players:
+        if tp.tournament:
+            player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
+            total_rated_games += player_games
+
     return {
         'total_points': total_points,
-        'total_games': total_games
+        'total_games': total_games,
+        'rated_total_points': rated_total_points,
+        'total_rated_games': total_rated_games
     }
 
 def format_note(note):
