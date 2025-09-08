@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify, abort, session
 from db.models import db, Player, Note, TournamentPlayer, Tournament, Game
 from datetime import datetime, date, timedelta
 from .auth import login_required, admin_required
+from .tournaments import format_tournament
 
 players_bp = Blueprint('players', __name__)
 
@@ -47,11 +48,6 @@ def format_tournament_data(tp, tournament):
     """Format tournament data for a player's tournament participation."""
     return {
         'id': tp.id,  # TournamentPlayer ID for disassociation
-        'tournament_id': tournament.id,
-        'tournament_name': tournament.name,
-        'date': tournament.date.isoformat() if tournament.date else None,
-        'location': tournament.location,
-        'is_team': tournament.is_team,
         'rank': tp.ranking,
         'starting_rank': tp.starting_rank,
         'title': tp.title,
@@ -60,7 +56,8 @@ def format_tournament_data(tp, tournament):
         'tiebreak1': tp.tiebreak1,
         'tiebreak2': tp.tiebreak2,
         'games_played': len([g for g in tournament.games if g.player_id == tp.id]),
-        'total_players': len(tournament.tournament_players)
+        'total_players': len(tournament.tournament_players),
+        'tournament': format_tournament(tournament)
     }
 
 @players_bp.route('/players', methods=['GET'])
