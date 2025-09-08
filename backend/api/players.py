@@ -33,51 +33,6 @@ KEY_TRANSLATIONS = {
     'fide_title': 'FIDE-Titel'
 }
 
-def calculate_player_tournament_stats(player_id):
-    """Calculate tournament statistics for a given player."""
- 
-    # Calculate date 360 days ago
-    cutoff_date = datetime.now().date() - timedelta(days=360)
-    
-    # Get tournament participations from the last 360 days
-    tournament_players = db.session.query(TournamentPlayer)\
-        .join(Tournament)\
-        .filter(TournamentPlayer.player_id == player_id)\
-        .filter(Tournament.date >= cutoff_date)\
-        .all()
-    
-    total_points = sum(tp.points or 0 for tp in tournament_players)
-    
-    # Count only games where this player actually participated
-    total_games = 0
-    for tp in tournament_players:
-        if tp.tournament:
-            # Count games where this TournamentPlayer is the player (not opponent)
-            player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
-            total_games += player_games
-
-    # Same calculation, but this time for rated tournaments only (tournament.elo_rating is not empty)
-    rated_tournament_players = db.session.query(TournamentPlayer)\
-        .join(Tournament)\
-        .filter(TournamentPlayer.player_id == player_id)\
-        .filter(Tournament.elo_rating.isnot(None))\
-        .filter(Tournament.date >= cutoff_date)\
-        .all()
-
-    total_rated_points = sum(tp.points or 0 for tp in rated_tournament_players)
-    total_rated_games = 0
-    for tp in rated_tournament_players:
-        if tp.tournament:
-            player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
-            total_rated_games += player_games
-
-    return {
-        'total_points': total_points,
-        'total_games': total_games,
-        'total_points_rated': total_rated_points,
-        'total_games_rated': total_rated_games
-    }
-
 def format_note(note):
     """Format a note for JSON response."""
     return {
@@ -169,7 +124,35 @@ def list_players():
             TournamentPlayer.player_id.in_(player_ids),
             Tournament.date >= cutoff_date
         ).group_by(TournamentPlayer.player_id).all()
-        
+
+        # total games_rated and total_points_rated
+        rated_points_query = db.session.query(
+            TournamentPlayer.player_id,
+            db.func.sum(db.func.coalesce(TournamentPlayer.points, 0)).label('total_points_rated')
+        ).join(
+            Tournament, TournamentPlayer.tournament_id == Tournament.id
+        ).filter(
+            TournamentPlayer.player_id.in_(player_ids),
+            Tournament.elo_rating.isnot(None),
+            Tournament.date >= cutoff_date
+        ).group_by(TournamentPlayer.player_id).all()
+
+        rated_games_query = db.session.query(
+            TournamentPlayer.player_id,
+            db.func.count(Game.id).label('total_games_rated')
+        ).select_from(TournamentPlayer).outerjoin(
+            Tournament, TournamentPlayer.tournament_id == Tournament.id
+        ).outerjoin(
+            Game, db.and_(
+                Game.tournament_id == Tournament.id,
+                Game.player_id == TournamentPlayer.id
+            )
+        ).filter(
+            TournamentPlayer.player_id.in_(player_ids),
+            Tournament.elo_rating.isnot(None),
+            Tournament.date >= cutoff_date
+        ).group_by(TournamentPlayer.player_id).all()
+
         # Convert to dict for easy lookup
         points_dict = {stat.player_id: stat.total_points or 0 for stat in points_query}
         games_dict = {stat.player_id: stat.total_games or 0 for stat in games_query}
@@ -178,7 +161,9 @@ def list_players():
         for player_id in player_ids:
             tournament_stats[player_id] = {
                 'total_points': points_dict.get(player_id, 0),
-                'total_games': games_dict.get(player_id, 0)
+                'total_games': games_dict.get(player_id, 0),
+                'total_points_rated': rated_points_dict.get(player_id, 0),
+                'total_games_rated': rated_games_dict.get(player_id, 0)
             }
     else:
         tournament_stats = {}
