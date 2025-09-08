@@ -49,36 +49,6 @@ def extract_tournament_id(url_or_id):
     
     raise ValueError(f"Could not extract tournament ID from: {url_or_id}")
 
-def import_tournament_from_excel_file(self, filepath, tournament_details):
-    """Import tournament using the tournament_importer module"""
-    try:
-        # Generate checksum for the file
-        sha256 = hashlib.sha256()
-        with open(filepath, 'rb') as f:
-            while chunk := f.read(8192):
-                sha256.update(chunk)
-        checksum = sha256.hexdigest()
-
-        # Check if tournament already imported
-        if Tournament.query.filter_by(checksum=checksum).first():
-            logger.info(f"Tournament {tournament_details['name']} already imported (checksum match)")
-            return {'success': False, 'reason': 'already_imported'}
-
-        tournament_details['checksum'] = checksum
-
-        # Use the tournament_importer module
-        result = import_tournament_from_excel(filepath=filepath, tournament_details=tournament_details)
-
-        logger.info(f"Successfully imported tournament {tournament_id}: {result['tournament_name']}")
-        logger.info(f"  Imported {result['imported_players']} players, {result['imported_games']} games")
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error importing tournament {tournament_id}: {str(e)}")
-        return {'success': False, 'reason': str(e)}
-
-
 def import_tournament(crawler, tournament_id, force=False):
     """Import tournament by ID"""
     try:
@@ -157,6 +127,7 @@ Examples:
   %(prog)s 1152295
   %(prog)s --url https://chess-results.com/tnr1152295.aspx
   %(prog)s --id 1152295
+  %(prog)s --file /path/to/tournament_details.json
         """
     )
     
@@ -168,16 +139,43 @@ Examples:
     parser.add_argument('--id', help='Tournament ID')
     parser.add_argument('--force', action='store_true', 
                        help='Force import even if tournament already exists')
+    parser.add_argument('--file', help='Path to JSON file with tournament details (to re-import downloaded content)')
     
     args = parser.parse_args()
     
     # Determine tournament ID from arguments
-    tournament_input = args.tournament or args.url or args.id
+    tournament_input = args.tournament or args.url or args.id or args.file
     
     if not tournament_input:
-        parser.error("No tournament URL or ID provided")
-    
+        parser.error("No tournament URL, ID or FILE provided")
+
     try:
+
+        if args.file:
+            # Load tournament details from JSON file
+            import json
+            with open(args.file, 'r', encoding='utf-8') as f:
+                tournament_details = json.load(f)
+            if 'id' not in tournament_details:
+                raise ValueError("Tournament details JSON must contain 'id' field")
+            tournament_id = str(tournament_details['id'])
+            logger.info(f"Loaded tournament details from file: {args.file}")
+            logger.info(f"Tournament ID: {tournament_id}")
+
+            # assume excel file is next to json file with _details.json suffix
+            excel_file = args.file.replace('_details.json', '.xlsx')
+            if not os.path.exists(excel_file):
+                raise ValueError(f"Expected Excel file not found: {excel_file}")
+            logger.info(f"Using Excel file: {excel_file}")
+            
+            result = import_tournament_from_excel(excel_file, tournament_details)
+            if result.get('success'):
+                logger.info("Tournament import completed successfully")
+                sys.exit(0)
+            else:
+                logger.error(f"Tournament import failed: {result.get('error')}")
+                sys.exit(1)
+
         tournament_id = extract_tournament_id(tournament_input)
         logger.info(f"Tournament ID: {tournament_id}")
         
