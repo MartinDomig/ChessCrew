@@ -168,7 +168,14 @@ Examples:
                 raise ValueError(f"Expected Excel file not found: {excel_file}")
             logger.info(f"Using Excel file: {excel_file}")
             
-            result = import_tournament_from_excel(excel_file, tournament_details)
+            # Import here to avoid issues with Flask app context
+            from app import create_app
+            
+            # Create Flask app context for database operations
+            app = create_app()
+            with app.app_context():
+                result = import_tournament_from_excel(excel_file, tournament_details)
+            
             if result.get('success'):
                 logger.info("Tournament import completed successfully")
                 sys.exit(0)
