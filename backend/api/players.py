@@ -156,7 +156,9 @@ def list_players():
         # Convert to dict for easy lookup
         points_dict = {stat.player_id: stat.total_points or 0 for stat in points_query}
         games_dict = {stat.player_id: stat.total_games or 0 for stat in games_query}
-        
+        rated_points_dict = {stat.player_id: stat.total_points_rated or 0 for stat in rated_points_query}
+        rated_games_dict = {stat.player_id: stat.total_games_rated or 0 for stat in rated_games_query}
+
         tournament_stats = {}
         for player_id in player_ids:
             tournament_stats[player_id] = {
