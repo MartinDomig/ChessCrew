@@ -864,9 +864,7 @@ def import_tournament_from_excel(file_path, tournament_details):
             try:
                 from datetime import datetime
                 tournament_details['date'] = datetime.strptime(tournament_details['date'], '%Y-%m-%d').date()
-                logger.info(f"Converted date string to date object: {tournament_details['date']}")
             except ValueError as e:
-                logger.warning(f"Could not parse date '{tournament_details['date']}': {e}")
                 tournament_details['date'] = None
         
 
