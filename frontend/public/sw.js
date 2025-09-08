@@ -1,5 +1,5 @@
 // Cache version - update this when deploying new code
-const CACHE_VERSION = '02d46459 (2025-09-06T10:46:41.760Z)';
+const CACHE_VERSION = '009eba66 (2025-09-08T07:12:15.355Z)';
 const CACHE_NAME = 'chesscrew-' + CACHE_VERSION;
 const API_CACHE_NAME = 'chesscrew-api-cache-' + CACHE_VERSION;
 const STATIC_ASSETS = [
@@ -64,7 +64,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - serve cached content when offline
+// Fetch event - always use network-first strategy
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') {
@@ -80,65 +80,36 @@ self.addEventListener('fetch', (event) => {
   const isApiRequest = url.pathname.startsWith('/api/');
 
   event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version if available
-        if (response) {
-          console.log('Serving from cache:', event.request.url);
-          return response;
-        }
+    // Always try network first
+    fetch(event.request).then((networkResponse) => {
+      // Don't cache non-200 responses (including 403)
+      if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+        return networkResponse;
+      }
 
-        // For API requests, use network-first strategy except for players and tournaments
-        if (isApiRequest) {
-          const isPlayersOrTournaments = url.pathname.includes('/api/players') || url.pathname.includes('/api/tournaments');
-
-          if (!isPlayersOrTournaments) {
-            // Network-first for other API requests
-            return fetch(event.request).then((networkResponse) => {
-              // Don't cache non-200 responses (including 403)
-              if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                return networkResponse;
-              }
-
-              // Cache successful API responses
-              const responseToCache = networkResponse.clone();
-              caches.open(API_CACHE_NAME)
-                .then((cache) => {
-                  cache.put(event.request, responseToCache);
-                });
-
-              return networkResponse;
-            }).catch((error) => {
-              console.log('Network request failed, trying cache:', error);
-              // If network fails, try cache
-              return caches.match(event.request);
-            });
-          }
-        }
-
-        // For static assets, use cache-first strategy
-        return fetch(event.request).then((networkResponse) => {
-          // Don't cache non-200 responses
-          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-            return networkResponse;
-          }
-
-          // Cache successful responses
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-
-          return networkResponse;
-        }).catch((error) => {
-          console.log('Network request failed:', error);
-          // If both network and cache fail, return offline page or error
-          return new Response('Offline - Content not available', {
-            status: 503,
-            statusText: 'Service Unavailable'
-          });
+      // Cache successful responses
+      const responseToCache = networkResponse.clone();
+      const cacheName = isApiRequest ? API_CACHE_NAME : CACHE_NAME;
+      caches.open(cacheName)
+        .then((cache) => {
+          cache.put(event.request, responseToCache);
         });
-      })
+
+      return networkResponse;
+    }).catch((error) => {
+      console.log('Network request failed, trying cache:', error);
+      // If network fails, try cache
+      return caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          console.log('Serving from cache:', event.request.url);
+          return cachedResponse;
+        }
+        // If both network and cache fail, return offline page or error
+        return new Response('Offline - Content not available', {
+          status: 503,
+          statusText: 'Service Unavailable'
+        });
+      });
+    })
   );
 });

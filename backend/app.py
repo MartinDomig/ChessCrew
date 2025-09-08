@@ -11,6 +11,11 @@ def create_app():
     if not app.secret_key:
         raise RuntimeError('FLASK_SECRET_KEY environment variable must be set.')
     
+    # Set session configuration for better persistence
+    app.config['PERMANENT_SESSION_LIFETIME'] = 90 * 24 * 60 * 60  # 90 days
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = True  # Refresh session on each request
+    app.config['SESSION_PERMANENT'] = True  # Make sessions permanent by default
+    
     # Set Flask environment (automatically sets DEBUG based on FLASK_ENV)
     flask_env = os.environ.get('FLASK_ENV', 'production')
     app.config['ENV'] = flask_env
