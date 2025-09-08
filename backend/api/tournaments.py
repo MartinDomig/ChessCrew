@@ -29,6 +29,7 @@ def format_tournament_player(tp):
             'first_name': tp.player.first_name,
             'last_name': tp.player.last_name,
             'kat': tp.player.kat,
+            'female': tp.player.female,
             'birthday': tp.player.birthday.isoformat() if tp.player.birthday else None
         } if tp.player else None
     }
