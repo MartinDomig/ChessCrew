@@ -867,8 +867,10 @@ def import_tournament_from_excel(file_path, tournament_details):
             date=tournament_details.get('date'), 
             location=tournament_details.get('location'),
             is_team=(result_format == 'team'),
-            chess_results_id=tournament_details.get('chess_results_id'),
-            chess_results_url=tournament_details.get('chess_results_url'),
+            chess_results_id=tournament_details.get('id'),
+            chess_results_url=tournament_details.get('tournament_url'),
+            elo_rating=tournament_details.get('elo_calculation'),
+            time_control=tournament_details.get('time_control'),
             rounds=tournament_details.get('number_of_rounds'),
             imported_at=datetime.now()
         )
