@@ -86,15 +86,6 @@ def import_tournament(crawler, tournament_id, force=False):
                 json.dump(tournament_details, f, ensure_ascii=False, indent=4)
             logger.info(f"Wrote tournament details to: {details_file}")
             
-            # Convert date string to Python date object if needed
-            if 'date' in tournament_details and isinstance(tournament_details['date'], str):
-                try:
-                    from datetime import datetime
-                    tournament_details['date'] = datetime.strptime(tournament_details['date'], '%Y-%m-%d').date()
-                except ValueError as e:
-                    logger.warning(f"Could not parse date '{tournament_details['date']}': {e}")
-                    tournament_details['date'] = None
-            
             # Import tournament using the tournament_importer module
             try:
                 result = import_tournament_from_excel(excel_file, tournament_details)

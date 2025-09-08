@@ -859,6 +859,17 @@ def import_tournament_from_excel(file_path, tournament_details):
         if mapped_players_count == 0:
             print(f"Warning: No players from this tournament could be mapped to existing players. Importing tournament anyway.")
 
+        # Convert date string to Python date object if needed
+        if 'date' in tournament_details and isinstance(tournament_details['date'], str):
+            try:
+                from datetime import datetime
+                tournament_details['date'] = datetime.strptime(tournament_details['date'], '%Y-%m-%d').date()
+                logger.info(f"Converted date string to date object: {tournament_details['date']}")
+            except ValueError as e:
+                logger.warning(f"Could not parse date '{tournament_details['date']}': {e}")
+                tournament_details['date'] = None
+        
+
         # Create tournament
         print(f"Creating tournament: {tournament_details.get('name')}")
         tournament = Tournament(
