@@ -56,9 +56,15 @@ def calculate_player_tournament_stats(player_id):
             player_games = len([g for g in tp.tournament.games if g.player_id == tp.id])
             total_games += player_games
 
-    # Same calculation, but this time for rated tournaments only (elo_rating is not empty)
-    rated_tournament_players = [tp for tp in tournament_players if tp.elo_rating is not None]
-    rated_total_points = sum(tp.points or 0 for tp in rated_tournament_players)
+    # Same calculation, but this time for rated tournaments only (tournament.elo_rating is not empty)
+    rated_tournament_players = db.session.query(TournamentPlayer)\
+        .join(Tournament)\
+        .filter(TournamentPlayer.player_id == player_id)\
+        .filter(Tournament.elo_rating.isnot(None))\
+        .filter(Tournament.date >= cutoff_date)\
+        .all()
+
+    total_rated_points = sum(tp.points or 0 for tp in rated_tournament_players)
     total_rated_games = 0
     for tp in rated_tournament_players:
         if tp.tournament:
@@ -68,7 +74,7 @@ def calculate_player_tournament_stats(player_id):
     return {
         'total_points': total_points,
         'total_games': total_games,
-        'rated_total_points': rated_total_points,
+        'rated_total_points': total_rated_points,
         'total_rated_games': total_rated_games
     }
 
