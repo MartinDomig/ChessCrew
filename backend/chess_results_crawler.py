@@ -243,7 +243,8 @@ class ChessResultsCrawler:
             'tournament_type': None,
             'time_control': None,
             'elo_calculation': None,
-            'number_of_rounds': None
+            'number_of_rounds': None,
+            'is_team_tournament': False
         }
 
         try:
@@ -286,6 +287,10 @@ class ChessResultsCrawler:
                         if value and value.strip():
                             metadata['tournament_type'] = value.strip()
                             logger.info(f"Found tournament type for tournament {tournament_id}: {metadata['tournament_type']}")
+                            is_team = any(word in metadata['tournament_type'].lower() for word in ['team', 'mannschaft', 'teams'])
+                            metadata['is_team_tournament'] = is_team
+                            if is_team:
+                                logger.info(f"Tournament {tournament_id} identified as team tournament based on type.")
                     
                     elif 'bedenkzeit' in key or 'time control' in key:
                         logger.info(f"Found time control entry for tournament {tournament_id}: '{value}'")
