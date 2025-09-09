@@ -173,6 +173,7 @@ function TournamentHeader({ tournament, isEditing, editedTournament, onFieldChan
 }
 
 function TournamentDetailsForm({ tournament, isEditing, editedTournament, onFieldChange, participantCount, onSave, onDelete, saving }) {
+  console.log('TournamentDetailsForm render', tournament); // --- IGNORE ---
   return (
     <CardContent sx={{ pt: 1 }}>
       {isEditing ? (
@@ -241,6 +242,11 @@ function TournamentDetailsForm({ tournament, isEditing, editedTournament, onFiel
           <Typography variant="body2">Typ: {tournament.is_team ? 'Mannschaftsturnier' : 'Einzelturnier'}</Typography>
           {tournament.elo_rating && <Typography variant="body2">Wertung: {tournament.elo_rating}</Typography>}
           {tournament.time_control && <Typography variant="body2">Bedenkzeit: {tournament.time_control}</Typography>}
+          {tournament.chess_results_url && (
+            <Typography variant="body2">
+              <a href={tournament.chess_results_url} target="_blank" rel="noopener noreferrer">Auf Chess Results anzeigen</a>
+            </Typography>
+          )}
         </>
       )}
     </CardContent>
