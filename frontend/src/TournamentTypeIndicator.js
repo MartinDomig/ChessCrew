@@ -13,7 +13,7 @@ export default function TournamentTypeIndicator({ tournament, size = 'small' }) 
     const eloRating = tournament.elo_rating.toLowerCase();
     const words = eloRating.split(' ');
     for (const word of words) {
-        if (word.length > 0 && word.toLowerCase().includes('national'))
+        if (word.length > 0 && !word.toLowerCase().includes('rating'))
             label += word[0].toUpperCase();
     }
   } else {
