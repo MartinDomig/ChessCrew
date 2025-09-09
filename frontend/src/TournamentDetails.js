@@ -239,8 +239,8 @@ function TournamentDetailsForm({ tournament, isEditing, editedTournament, onFiel
           <Typography variant="body2">Teilnehmer: {participantCount}</Typography>
           <Typography variant="body2">Runden: {tournament.rounds}</Typography>
           <Typography variant="body2">Typ: {tournament.is_team ? 'Mannschaftsturnier' : 'Einzelturnier'}</Typography>
-          <Typography variant="body2">Wertung: {tournament.elo_rating ? tournament.elo_rating : 'Keine'}</Typography>
-          <Typography variant="body2">Bedenkzeit: {tournament.time_control}</Typography>
+          {tournament.elo_rating && <Typography variant="body2">Wertung: {tournament.elo_rating}</Typography>}
+          {tournament.time_control && <Typography variant="body2">Bedenkzeit: {tournament.time_control}</Typography>}
         </>
       )}
     </CardContent>
@@ -280,8 +280,6 @@ function TournamentDetails({ tournament, onPlayerClick, onDelete, onUpdate }) {
   } = useEditMode(localTournament);
 
   const [selectedPlayer, setSelectedPlayer] = useState(null);
-
-  console.log('TournamentDetails render', tournament);
 
   // Update local tournament state when prop changes
   useEffect(() => {
