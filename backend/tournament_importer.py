@@ -72,6 +72,13 @@ def find_existing_player(name, shuffling=False):
         if player:
             return player
     
+    # remove all name segments that have a dot in it (titles, initials)
+    name_no_titles = ' '.join([part for part in name.split() if '.' not in part and part.lower != 'di'])
+    if name_no_titles != name:
+        player = find_existing_player(name_no_titles)
+        if player:
+            return player
+
     if not shuffling:
         # shuffle name parts: move the first part to the last
         name_parts = name.split()
