@@ -368,7 +368,7 @@ class ChessResultsCrawler:
 
             # If this is a team tournament, search for the "Team-Composition with round results" or "Teamaufstellung mit Einzelergebnissen" link
             if tournament_metadata['is_team_tournament']:
-                team_composition_link = soup.find('a', string=re.compile(r'with round results|mit Einzelergebnissen', re.IGNORECASE))
+                team_composition_link = soup.find('a', string=re.compile(r'with round-results|mit Einzelergebnissen', re.IGNORECASE))
                 if team_composition_link:
                     href = team_composition_link.get('href')
                     if href:
@@ -381,7 +381,7 @@ class ChessResultsCrawler:
                         soup = BeautifulSoup(response.content, 'html.parser')
 
                         # Check if we need to submit the "Show tournament details" form (anti-crawling measure)
-                        updated_soup = self.click_show_tournament_details_button(soup, tournament_url, tournament_id)
+                        updated_soup = self.click_show_tournament_details_button(soup, response.url, tournament_id)
                         if updated_soup:
                             soup = updated_soup
 
