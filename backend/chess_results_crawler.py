@@ -366,13 +366,6 @@ class ChessResultsCrawler:
             # Parse tournament metadata
             tournament_metadata = self._parse_tournament_metadata(soup, tournament_id)
 
-            # Team tournament detection: Search for any <a> with a text that contains "Teamaufstellung" or "Team composition"
-            tournament_metadata['is_team_tournament'] = False
-            team_link = soup.find('a', string=re.compile(r'Teamaufstellung|Team composition', re.IGNORECASE))
-            if team_link:
-                tournament_metadata['is_team_tournament'] = True
-                logger.info(f"Tournament {tournament_id} detected as team tournament based on link text.")
-            
             # If this is a team tournament, search for the "Team Composition with round results" or "Teamaufstellung mit Einzelergebnissen" link
             if tournament_metadata['is_team_tournament']:
                 team_composition_link = soup.find('a', string=re.compile(r'Team Composition with round results|Teamaufstellung mit Einzelergebnissen', re.IGNORECASE))
