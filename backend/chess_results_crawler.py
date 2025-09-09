@@ -366,9 +366,9 @@ class ChessResultsCrawler:
             # Parse tournament metadata
             tournament_metadata = self._parse_tournament_metadata(soup, tournament_id)
 
-            # If this is a team tournament, search for the "Team Composition with round results" or "Teamaufstellung mit Einzelergebnissen" link
+            # If this is a team tournament, search for the "Team-Composition with round results" or "Teamaufstellung mit Einzelergebnissen" link
             if tournament_metadata['is_team_tournament']:
-                team_composition_link = soup.find('a', string=re.compile(r'Team Composition with round results|Teamaufstellung mit Einzelergebnissen', re.IGNORECASE))
+                team_composition_link = soup.find('a', string=re.compile(r'with round results|mit Einzelergebnissen', re.IGNORECASE))
                 if team_composition_link:
                     href = team_composition_link.get('href')
                     if href:
