@@ -233,5 +233,131 @@ def get_player_tags(player_id):
         return jsonify({'error': 'Spieler nicht gefunden.'}), 404
     return jsonify([{'id': t.id, 'name': t.name, 'color': t.color} for t in player.tags])
 
+@api.route('/email/tags', methods=['GET'])
+@login_required
+def get_email_tags():
+    """Get all tags with player counts for email purposes"""
+    tags = Tag.query.all()
+    result = []
+
+    for tag in tags:
+        player_count = len([p for p in tag.players if p.email and p.email.strip()])
+        result.append({
+            'id': tag.id,
+            'name': tag.name,
+            'color': tag.color,
+            'player_count': player_count,
+            'email_address': f'chesscrew.{tag.name}@domig.net'
+        })
+
+    return jsonify(result)
+
+@api.route('/email/preview/<int:tag_id>', methods=['POST'])
+@login_required
+def preview_email(tag_id):
+    """Preview how an email would look for players with a specific tag"""
+    tag = Tag.query.get(tag_id)
+    if not tag:
+        return jsonify({'error': 'Tag nicht gefunden.'}), 404
+
+    data = request.get_json()
+    subject = data.get('subject', '')
+    body = data.get('body', '')
+
+    # Get first player with email for preview
+    preview_player = None
+    for player in tag.players:
+        if player.email and player.email.strip():
+            preview_player = player
+            break
+
+    if not preview_player:
+        return jsonify({'error': 'Keine Spieler mit E-Mail-Adresse in dieser Gruppe gefunden.'}), 404
+
+    # Apply personalization
+    greeting = "Liebe" if preview_player.female else "Lieber"
+    personalized_subject = subject.replace('{firstname}', preview_player.first_name)
+    personalized_subject = personalized_subject.replace('{lastname}', preview_player.last_name)
+    personalized_subject = personalized_subject.replace('{name}', preview_player.name)
+    personalized_subject = personalized_subject.replace('{greeting}', greeting)
+
+    personalized_body = body.replace('{firstname}', preview_player.first_name)
+    personalized_body = personalized_body.replace('{lastname}', preview_player.last_name)
+    personalized_body = personalized_body.replace('{name}', preview_player.name)
+    personalized_body = personalized_body.replace('{greeting}', greeting)
+    personalized_body = personalized_body.replace('{email}', preview_player.email)
+
+    return jsonify({
+        'preview_player': {
+            'name': preview_player.name,
+            'email': preview_player.email,
+            'gender': 'female' if preview_player.female else 'male'
+        },
+        'personalized_subject': personalized_subject,
+        'personalized_body': personalized_body,
+        'total_recipients': len([p for p in tag.players if p.email and p.email.strip()])
+    })
+
+@api.route('/email/send-test/<int:tag_id>', methods=['POST'])
+@login_required
+def send_test_email(tag_id):
+    """Send a test email to the first player in a tag group"""
+    tag = Tag.query.get(tag_id)
+    if not tag:
+        return jsonify({'error': 'Tag nicht gefunden.'}), 404
+
+    data = request.get_json()
+    subject = data.get('subject', '')
+    body = data.get('body', '')
+
+    # Find first player with email
+    test_player = None
+    for player in tag.players:
+        if player.email and player.email.strip():
+            test_player = player
+            break
+
+    if not test_player:
+        return jsonify({'error': 'Keine Spieler mit E-Mail-Adresse in dieser Gruppe gefunden.'}), 404
+
+    # Here you would integrate with your email sending system
+    # For now, just return success
+    return jsonify({
+        'status': 'Test-E-Mail würde an {} gesendet werden'.format(test_player.email),
+        'recipient': {
+            'name': test_player.name,
+            'email': test_player.email
+        }
+    })
+
+@api.route('/email/stats', methods=['GET'])
+@login_required
+def get_email_stats():
+    """Get email statistics for all tags"""
+    tags = Tag.query.all()
+    total_players = Player.query.count()
+    players_with_email = Player.query.filter(Player.email.isnot(None), Player.email != '').count()
+
+    tag_stats = []
+    for tag in tags:
+        players_in_tag = len(tag.players)
+        players_with_email_in_tag = len([p for p in tag.players if p.email and p.email.strip()])
+
+        tag_stats.append({
+            'tag_name': tag.name,
+            'total_players': players_in_tag,
+            'players_with_email': players_with_email_in_tag,
+            'email_percentage': round((players_with_email_in_tag / players_in_tag * 100), 1) if players_in_tag > 0 else 0
+        })
+
+    return jsonify({
+        'overall': {
+            'total_players': total_players,
+            'players_with_email': players_with_email,
+            'email_percentage': round((players_with_email / total_players * 100), 1) if total_players > 0 else 0
+        },
+        'tags': tag_stats
+    })
+
 def register_routes(app):
     app.register_blueprint(api, url_prefix='/api')

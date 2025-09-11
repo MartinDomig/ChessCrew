@@ -8,3 +8,5 @@ pandas
 openpyxl
 beautifulsoup4
 lxml
+flask-mail
+python-magic
