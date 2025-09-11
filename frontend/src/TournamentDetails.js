@@ -173,7 +173,6 @@ function TournamentHeader({ tournament, isEditing, editedTournament, onFieldChan
 }
 
 function TournamentDetailsForm({ tournament, isEditing, editedTournament, onFieldChange, participantCount, onSave, onDelete, saving }) {
-  console.log('TournamentDetailsForm render', tournament); // --- IGNORE ---
   return (
     <CardContent sx={{ pt: 1 }}>
       {isEditing ? (
