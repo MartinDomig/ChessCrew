@@ -7,7 +7,7 @@ import TournamentTypeIndicator from './TournamentTypeIndicator';
 import { Box, Typography } from '@mui/material';
 
 function TournamentList({tournaments, onTournamentClick}) {
-  // Sort tournaments: date descending, then name ascending
+  // Use the filtered tournaments passed as props (from context)
   const sortedTournaments = [...tournaments].sort((a, b) => {
     // Parse dates for comparison
     const dateA = a.date ? new Date(a.date) : new Date(0);

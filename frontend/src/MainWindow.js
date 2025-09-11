@@ -30,6 +30,7 @@ import {PlayerListProvider, usePlayerList} from './PlayerListContext';
 import TournamentDetails from './TournamentDetails';
 import TournamentList from './TournamentList';
 import {TournamentListProvider, useTournamentList} from './TournamentListContext';
+import TournamentListSearchBar from './TournamentListSearchBar';
 import PlayerListSearchBar from './PlayerListSearchBar';
 import { StaleDataBanner } from './StaleDataIndicator';
 import { UpdateNotifier } from './UpdateNotifier';
@@ -187,38 +188,51 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
         <Box sx={{
           width: '100%',
           height: '100%',
-          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
           position: 'relative',
         }}>
-          {/* Tournament-specific actions bar */}
+          {/* Fixed search bar */}
           <Box sx={{
-            display: 'flex',
-            gap: 1,
-            px: 1, py: 0.5,  // Reduced horizontal padding
-            position: 'sticky',
-            top: 0,
-            zIndex: 1,
+            flexShrink: 0,
+            px: 1, py: 0.5,
             background: '#fafafa',
             borderBottom: '1px solid #eee',
-            alignItems: 'center'
+            position: 'sticky',
+            top: 0,
+            zIndex: 1
           }}>
-            <IconButton
-              color="primary"
-              onClick={reloadTournaments}
-              size="small"
-              title="Turniere neu laden"
-              sx={{ p: 0.5 }}
-            >
-              <RefreshIcon fontSize="small" />
-            </IconButton>
+            <Box sx={{ mb: 1 }}>
+              <TournamentListSearchBar />
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton
+                color="primary"
+                onClick={reloadTournaments}
+                size="small"
+                title="Turniere neu laden"
+                sx={{ p: 0.5 }}
+              >
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Box>
           </Box>
-          <TournamentList
-            tournaments={tournaments}
-            onTournamentClick={(tournament) => {console.log('### TournamentList click',tournament);onNavigate({
-              type: NAV_TYPES.TOURNAMENT_DETAIL,
-              data: { tournament }
-            })}}
-          />
+          
+          {/* Scrollable content area */}
+          <Box sx={{
+            flex: 1,
+            overflowY: 'auto',
+            px: 1,
+            py: 0.5
+          }}>
+            <TournamentList
+              tournaments={tournaments}
+              onTournamentClick={(tournament) => {console.log('### TournamentList click',tournament);onNavigate({
+                type: NAV_TYPES.TOURNAMENT_DETAIL,
+                data: { tournament }
+              })}}
+            />
+          </Box>
         </Box>
       );
 
@@ -262,7 +276,7 @@ function MainWindowContent({user}) {
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
   const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading, sortBy, setSortBy, filteredPlayers} = usePlayerList();
-  const {tournaments, reloadTournaments, hasStaleData: hasStaleTournamentData} = useTournamentList();
+  const {tournaments, reloadTournaments, hasStaleData: hasStaleTournamentData, searchInput, setSearchInput} = useTournamentList();
 
   // Initialize navigation stack with player list
   const navigation = useNavigationStack([{
@@ -326,10 +340,11 @@ function MainWindowContent({user}) {
       setSearchTags([]); // Clear tag filters
       navigation.push({ type: NAV_TYPES.PLAYER_LIST, data: {} });
     } else {
-      // For tournament tab, start fresh
+      // For tournament tab, reset tournament search state
+      setSearchInput(''); // Clear tournament search input
       navigation.push({ type: NAV_TYPES.TOURNAMENT_LIST, data: {} });
     }
-  }, [navigation, setActiveOnly, setInputValue, setSearchTags]);
+  }, [navigation, setActiveOnly, setInputValue, setSearchTags, setSearchInput]);
 
   return (
     <Box sx={{
