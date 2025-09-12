@@ -3,11 +3,11 @@
 # Email Processor Wrapper Script for Postfix
 # This script sets up the virtual environment and runs the email processor
 
-# Path to the virtual environment
-VENV_PATH="/home/martin/chesscrew/venv"
+# Find the directory containing this script
+BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Path to the backend directory
-BACKEND_DIR="/home/martin/chesscrew/backend"
+# Path to the virtual environment
+VENV_PATH="$BACKEND_DIR/venv"
 
 # Activate the virtual environment
 if [ -f "$VENV_PATH/bin/activate" ]; then
