@@ -48,7 +48,11 @@ def create_app():
 def get_players_by_category(category_name):
     """Get all active players with a specific category"""
     with create_app().app_context():
-        players = Player.query.filter_by(category=category_name, is_active=True).all()
+        # Case insensitive category search
+        players = Player.query.filter(
+            Player.category.ilike(category_name),
+            Player.is_active == True
+        ).all()
         
         valid_players = []
         for player in players:
@@ -78,7 +82,8 @@ def get_player_emails(player):
 def get_players_by_tag(tag_name):
     """Get all players with a specific tag who have email addresses"""
     with create_app().app_context():
-        tag = Tag.query.filter_by(name=tag_name).first()
+        # Case insensitive tag search
+        tag = Tag.query.filter(Tag.name.ilike(tag_name)).first()
         if not tag:
             return []
 
