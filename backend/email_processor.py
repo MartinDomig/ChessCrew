@@ -23,7 +23,7 @@ import magic
 import re
 from pathlib import Path
 
-from config import DOMAIN, ADMIN_EMAIL, SMTP_SERVER, SMTP_PORT
+from config import DOMAIN, ADMIN_EMAIL, SMTP_SERVER, SMTP_PORT, TRUSTED_MAIL_SERVER
 
 # Add the backend directory to Python path
 backend_dir = Path(__file__).parent
@@ -189,15 +189,37 @@ def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_
         print(f"Failed to send email to {player.email}: {e}", file=sys.stderr)
         return False
 
+def is_authenticated_sender(msg):
+    """Check if email was sent by authenticated SMTP user via our server"""
+    # Check for SMTP authentication in Received headers from our server
+    received_headers = msg.get_all('Received', [])
+    for received in received_headers:
+        # Look for ESMTPSA from our specific mail server
+        if ('esmtpsa' in received.lower() and 
+            TRUSTED_MAIL_SERVER.lower() in received.lower()):
+            return True
+        # Also check for other authentication indicators from our server
+        if (TRUSTED_MAIL_SERVER.lower() in received.lower() and 
+            any(auth_indicator in received.lower() for auth_indicator in [
+                'sasl_authenticated', 'authenticated', 'auth=pass'
+            ])):
+            return True
+    
+    return False
+
 def main():
     try:
         # Parse the incoming email
         msg = parse_email_from_stdin()
 
-        # if mail does not come from admin, disregard it
+        # Security checks: verify sender is authenticated and from admin
         from_addr = email.utils.parseaddr(msg['From'])[1]
         if from_addr != ADMIN_EMAIL:
             print(f"Email from {from_addr} is not from admin, disregarding.", file=sys.stderr)
+            return
+            
+        if not is_authenticated_sender(msg):
+            print(f"Email from {from_addr} was not sent via authenticated SMTP, disregarding for security.", file=sys.stderr)
             return
 
         # Get all recipients
