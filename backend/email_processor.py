@@ -45,6 +45,18 @@ def create_app():
     db.init_app(app)
     return app
 
+def get_players_by_category(category_name):
+    """Get all active players with a specific category"""
+    with create_app().app_context():
+        players = Player.query.filter_by(category=category_name, is_active=True).all()
+        
+        valid_players = []
+        for player in players:
+            if player.email and player.email.strip():
+                valid_players.append(player)
+
+        return valid_players
+
 def get_player_emails(player):
     """Get all email addresses for a player, handling multiple emails separated by various delimiters"""
     if not player.email or not player.email.strip():
@@ -98,6 +110,21 @@ def get_tag_from_subject(subject):
         return match.group(1)
     return None
 
+def get_category_from_subject(subject):
+    """Extract category from subject line like [kat:U10] Tournament info"""
+    if not subject:
+        return None
+    match = re.search(r'\[kat:([^\]]+)\]', subject, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return None
+
+def is_dry_run_from_subject(subject):
+    """Check if dry run is requested via [dry] or [test] in subject"""
+    if not subject:
+        return False
+    return bool(re.search(r'\[(dry|test)\]', subject, re.IGNORECASE))
+
 def get_gender_greeting(female):
     """Get gender-specific greeting"""
     return "Liebe" if female else "Lieber"
@@ -127,10 +154,14 @@ def personalize_content(content, player):
     return personalized
 
 def remove_tag_from_subject(subject):
-    """Remove [tag:xxx] from subject line"""
+    """Remove [tag:xxx], [kat:xxx], [dry], and [test] from subject line"""
     if not subject:
         return subject
-    return re.sub(r'\[tag:[^\]]+\]\s*', '', subject, flags=re.IGNORECASE)
+    # Remove all markers
+    subject = re.sub(r'\[tag:[^\]]+\]\s*', '', subject, flags=re.IGNORECASE)
+    subject = re.sub(r'\[kat:[^\]]+\]\s*', '', subject, flags=re.IGNORECASE)
+    subject = re.sub(r'\[(dry|test)\]\s*', '', subject, flags=re.IGNORECASE)
+    return subject
 
 def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_port=SMTP_PORT):
     """Send a personalized email to a specific player"""
@@ -338,32 +369,50 @@ def main():
         if msg['Bcc']:
             recipients.extend(email.utils.getaddresses([msg['Bcc']]))
 
-        # Extract tag from subject line
+        # Extract tag or category from subject line
         tag = get_tag_from_subject(msg['Subject'])
-        if not tag:
-            error_msg = "No tag found in subject line. Expected format: [tag:tagname]"
+        category = get_category_from_subject(msg['Subject'])
+        dry_run = is_dry_run_from_subject(msg['Subject'])
+        
+        if dry_run:
+            summary_lines.append(f"🧪 DRY RUN MODE: No emails will actually be sent")
+        
+        if not tag and not category:
+            error_msg = "No tag or category found in subject line. Expected format: [tag:tagname] or [kat:category]"
+            if dry_run:
+                error_msg += " (Add [dry] or [test] for dry run mode)"
             print(error_msg, file=sys.stderr)
             summary_lines.append(f"❌ ERROR: {error_msg}")
             send_summary_email(msg, "\n".join(summary_lines))
             return
 
-        summary_lines.append(f"📧 PROCESSING: Tag '{tag}' found in subject")
-
-        # Process the tag
+        # Process based on tag or category
         emails_sent = 0
         failed_emails = []
+        
+        if tag:
+            summary_lines.append(f"📧 PROCESSING: Tag '{tag}' found in subject")
+            # Get players with this tag
+            players = get_players_by_tag(tag)
+            if not players:
+                error_msg = f"No players found with tag '{tag}'"
+                print(error_msg, file=sys.stderr)
+                summary_lines.append(f"❌ ERROR: {error_msg}")
+                send_summary_email(msg, "\n".join(summary_lines))
+                return
+            log_msg = f"Sending email to {len(players)} players with tag '{tag}'"
+        else:  # category
+            summary_lines.append(f"📧 PROCESSING: Category '{category}' found in subject")
+            # Get players with this category
+            players = get_players_by_category(category)
+            if not players:
+                error_msg = f"No active players found with category '{category}'"
+                print(error_msg, file=sys.stderr)
+                summary_lines.append(f"❌ ERROR: {error_msg}")
+                send_summary_email(msg, "\n".join(summary_lines))
+                return
+            log_msg = f"Sending email to {len(players)} active players with category '{category}'"
 
-        # Get players with this tag
-        players = get_players_by_tag(tag)
-
-        if not players:
-            error_msg = f"No players found with tag '{tag}'"
-            print(error_msg, file=sys.stderr)
-            summary_lines.append(f"❌ ERROR: {error_msg}")
-            send_summary_email(msg, "\n".join(summary_lines))
-            return
-
-        log_msg = f"Sending email to {len(players)} players with tag '{tag}'"
         print(log_msg, file=sys.stderr)
         summary_lines.append(f"📬 SENDING: {log_msg}")
 
@@ -382,14 +431,17 @@ def main():
                     setattr(temp_player, attr, getattr(player, attr, None))
                 temp_player.email = email_addr
                 
-                if send_personalized_email(msg, temp_player):
+                if dry_run:
+                    # Simulate sending for dry run
+                    emails_sent += 1
+                    success_msg = f"[DRY RUN] Would send email to {email_addr}"
+                    print(success_msg, file=sys.stderr)
+                    summary_lines.append(f"  🧪 {player.name} ({email_addr}) - DRY RUN")
+                elif send_personalized_email(msg, temp_player):
                     emails_sent += 1
                     success_msg = f"Sent email to {email_addr}"
                     print(success_msg, file=sys.stderr)
-                    if len(player_emails) > 1:
-                        summary_lines.append(f"  ✅ {player.name} ({email_addr})")
-                    else:
-                        summary_lines.append(f"  ✅ {player.name} ({email_addr})")
+                    summary_lines.append(f"  ✅ {player.name} ({email_addr})")
                 else:
                     fail_msg = f"Failed to send email to {email_addr}"
                     print(fail_msg, file=sys.stderr)
@@ -399,9 +451,16 @@ def main():
         final_msg = f"Total emails sent: {emails_sent}"
         print(final_msg, file=sys.stderr)
         summary_lines.append(f"\n📊 SUMMARY:")
-        summary_lines.append(f"  • Successfully sent: {emails_sent}")
+        if dry_run:
+            summary_lines.append(f"  • 🧪 DRY RUN - No actual emails sent")
+            summary_lines.append(f"  • Would have sent: {emails_sent}")
+        else:
+            summary_lines.append(f"  • Successfully sent: {emails_sent}")
         summary_lines.append(f"  • Failed: {len(failed_emails)}")
-        summary_lines.append(f"  • Total players with tag '{tag}': {len(players)}")
+        if tag:
+            summary_lines.append(f"  • Total players with tag '{tag}': {len(players)}")
+        else:
+            summary_lines.append(f"  • Total active players with category '{category}': {len(players)}")
         
         if failed_emails:
             summary_lines.append(f"\n❌ FAILED EMAILS:")
