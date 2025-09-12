@@ -508,20 +508,19 @@ def main():
                 if dry_run:
                     # Simulate sending for dry run
                     emails_sent += 1
-                    success_msg = f"[DRY RUN] Would send email to {email_addr}"
-                    print(success_msg, file=sys.stderr)
+                    # Don't print individual emails, just count them
                     summary_lines.append(f"  🧪 {player.name} ({email_addr}) - DRY RUN")
                 elif send_personalized_email(msg, temp_player):
                     emails_sent += 1
-                    success_msg = f"Sent email to {email_addr}"
-                    print(success_msg, file=sys.stderr)
+                    # Don't print individual emails, just count them
                     summary_lines.append(f"  ✅ {player.name} ({email_addr})")
                 else:
+                    # Still print failures to stderr for immediate attention
                     fail_msg = f"Failed to send email to {email_addr}"
                     print(fail_msg, file=sys.stderr)
                     failed_emails.append(email_addr)
                     summary_lines.append(f"  ❌ {player.name} ({email_addr}) - FAILED")
-
+                
         final_msg = f"Total emails sent: {emails_sent}"
         print(final_msg, file=sys.stderr)
         summary_lines.append(f"\n📊 SUMMARY:")
