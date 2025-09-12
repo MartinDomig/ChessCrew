@@ -203,6 +203,28 @@ def personalize_content(content, player):
         '{fide_elo}': str(player.fide_elo) if player.fide_elo else '',
         '{spielernummer}': str(player.p_number) if player.p_number else '',
         '{fidenummer}': str(player.fide_number) if player.fide_number else '',
+        
+        # Gender-specific German text variations
+        '{spieler}': 'Spielerin' if player.female else 'Spieler',
+        '{schachspieler}': 'Schachspielerin' if player.female else 'Schachspieler',
+        '{teilnehmer}': 'Teilnehmerin' if player.female else 'Teilnehmer',
+        '{sieger}': 'Siegerin' if player.female else 'Sieger',
+        '{gewinner}': 'Gewinnerin' if player.female else 'Gewinner',
+        '{meister}': 'Meisterin' if player.female else 'Meister',
+        '{vereinsmitglied}': 'Vereinsmitglied' if player.female else 'Vereinsmitglied',  # Same for both
+        
+        # Gender-specific adjectives with common endings
+        '{aktiver}': 'aktive' if player.female else 'aktiver',
+        '{neuer}': 'neue' if player.female else 'neuer',
+        '{erfahrener}': 'erfahrene' if player.female else 'erfahrener',
+        '{erfolgreicher}': 'erfolgreiche' if player.female else 'erfolgreicher',
+        '{talentierter}': 'talentierte' if player.female else 'talentierter',
+        '{junger}': 'junge' if player.female else 'junger',
+        
+        # Past participles (common pattern)
+        '{qualifizierter}': 'qualifizierte' if player.female else 'qualifizierter',
+        '{registrierter}': 'registrierte' if player.female else 'registrierter',
+        '{angemeldeter}': 'angemeldete' if player.female else 'angemeldeter',
     }
 
     personalized = content
