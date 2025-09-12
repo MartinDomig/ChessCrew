@@ -45,6 +45,24 @@ def create_app():
     db.init_app(app)
     return app
 
+def get_player_emails(player):
+    """Get all email addresses for a player, handling multiple emails separated by various delimiters"""
+    if not player.email or not player.email.strip():
+        return []
+    
+    # Split by common delimiters: comma, semicolon, space
+    import re
+    emails = re.split(r'[,;\s]+', player.email.strip())
+    
+    # Clean up and validate emails
+    valid_emails = []
+    for email in emails:
+        email = email.strip()
+        if email and '@' in email:  # Basic email validation
+            valid_emails.append(email)
+    
+    return valid_emails
+
 def get_players_by_tag(tag_name):
     """Get all players with a specific tag who have email addresses"""
     with create_app().app_context():
@@ -351,16 +369,32 @@ def main():
 
         # Send personalized email to each player
         for player in players:
-            if send_personalized_email(msg, player):
-                emails_sent += 1
-                success_msg = f"Sent email to {player.email}"
-                print(success_msg, file=sys.stderr)
-                summary_lines.append(f"  ✅ {player.name} ({player.email})")
-            else:
-                fail_msg = f"Failed to send email to {player.email}"
-                print(fail_msg, file=sys.stderr)
-                failed_emails.append(player.email)
-                summary_lines.append(f"  ❌ {player.name} ({player.email}) - FAILED")
+            player_emails = get_player_emails(player)
+            if not player_emails:
+                summary_lines.append(f"  ❌ {player.name} - No valid email addresses")
+                continue
+                
+            # Send to each email address for this player
+            for email_addr in player_emails:
+                # Create a temporary player object with single email for sending
+                temp_player = type('Player', (), {})()
+                for attr in ['first_name', 'last_name', 'name', 'female', 'club', 'elo', 'fide_elo', 'p_number', 'fide_number']:
+                    setattr(temp_player, attr, getattr(player, attr, None))
+                temp_player.email = email_addr
+                
+                if send_personalized_email(msg, temp_player):
+                    emails_sent += 1
+                    success_msg = f"Sent email to {email_addr}"
+                    print(success_msg, file=sys.stderr)
+                    if len(player_emails) > 1:
+                        summary_lines.append(f"  ✅ {player.name} ({email_addr})")
+                    else:
+                        summary_lines.append(f"  ✅ {player.name} ({email_addr})")
+                else:
+                    fail_msg = f"Failed to send email to {email_addr}"
+                    print(fail_msg, file=sys.stderr)
+                    failed_emails.append(email_addr)
+                    summary_lines.append(f"  ❌ {player.name} ({email_addr}) - FAILED")
 
         final_msg = f"Total emails sent: {emails_sent}"
         print(final_msg, file=sys.stderr)
