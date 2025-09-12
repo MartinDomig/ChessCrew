@@ -114,8 +114,24 @@ def remove_tag_from_subject(subject):
 def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_port=SMTP_PORT):
     """Send a personalized email to a specific player"""
 
-    # Create new message
-    msg = MIMEMultipart('alternative')  # Use 'alternative' for plain/HTML versions
+    # Determine if we need multipart based on content and attachments
+    has_attachments = False
+    if original_msg.is_multipart():
+        for part in original_msg.walk():
+            if (part.get_content_maintype() != 'multipart' and 
+                part.get('Content-Disposition') is not None and 
+                part.get_filename()):
+                has_attachments = True
+                break
+
+    # Create appropriate message structure
+    if has_attachments:
+        # Use mixed multipart for attachments
+        msg = MIMEMultipart('mixed')
+    else:
+        # Use alternative for text/html alternatives
+        msg = MIMEMultipart('alternative')
+    
     msg['From'] = original_msg['From']
     msg['To'] = player.email
     
@@ -153,17 +169,27 @@ def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_
         else:
             plain_text_body = body
 
-    # Personalize content
-    if plain_text_body:
+    # Create text content container
+    if has_attachments and (plain_text_body and html_body):
+        # If we have attachments AND both text formats, create an alternative container for text
+        text_container = MIMEMultipart('alternative')
         personalized_plain = personalize_content(plain_text_body, player)
-        msg.attach(MIMEText(personalized_plain, 'plain', 'utf-8'))
-
-    if html_body:
+        text_container.attach(MIMEText(personalized_plain, 'plain', 'utf-8'))
         personalized_html = personalize_content(html_body, player)
-        msg.attach(MIMEText(personalized_html, 'html', 'utf-8'))
+        text_container.attach(MIMEText(personalized_html, 'html', 'utf-8'))
+        msg.attach(text_container)
+    else:
+        # Add text content directly
+        if plain_text_body:
+            personalized_plain = personalize_content(plain_text_body, player)
+            msg.attach(MIMEText(personalized_plain, 'plain', 'utf-8'))
+
+        if html_body:
+            personalized_html = personalize_content(html_body, player)
+            msg.attach(MIMEText(personalized_html, 'html', 'utf-8'))
 
     # Copy attachments from original message
-    if original_msg.is_multipart():
+    if has_attachments:
         for part in original_msg.walk():
             if part.get_content_maintype() == 'multipart':
                 continue
@@ -176,7 +202,6 @@ def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_
                 attachment.set_payload(part.get_payload(decode=True))
                 encoders.encode_base64(attachment)
                 attachment.add_header('Content-Disposition', f'attachment; filename="{filename}"')
-                # Add attachment to the main message
                 msg.attach(attachment)
 
     # Send the email
