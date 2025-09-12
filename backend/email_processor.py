@@ -105,6 +105,12 @@ def personalize_content(content, player):
 
     return personalized
 
+def remove_tag_from_subject(subject):
+    """Remove [tag:xxx] from subject line"""
+    if not subject:
+        return subject
+    return re.sub(r'\[tag:[^\]]+\]\s*', '', subject, flags=re.IGNORECASE)
+
 def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_port=SMTP_PORT):
     """Send a personalized email to a specific player"""
 
@@ -112,7 +118,10 @@ def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_
     msg = MIMEMultipart('alternative')  # Use 'alternative' for plain/HTML versions
     msg['From'] = original_msg['From']
     msg['To'] = player.email
-    msg['Subject'] = personalize_content(original_msg['Subject'] or '', player)
+    
+    # Remove tag from subject before personalizing
+    clean_subject = remove_tag_from_subject(original_msg['Subject'] or '')
+    msg['Subject'] = personalize_content(clean_subject, player)
 
     # Process the original message content
     plain_text_body = None
@@ -151,13 +160,6 @@ def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_
 
     if html_body:
         personalized_html = personalize_content(html_body, player)
-        msg.attach(MIMEText(personalized_html, 'html', 'utf-8'))
-    elif plain_text_body:
-        # If no HTML but we have plain text, convert basic formatting to HTML
-        personalized_html = personalize_content(plain_text_body, player)
-        # Convert line breaks to <br> and basic formatting
-        personalized_html = personalized_html.replace('\n', '<br>\n')
-        personalized_html = f'<html><body><pre style="font-family: Arial, sans-serif; white-space: pre-wrap;">{personalized_html}</pre></body></html>'
         msg.attach(MIMEText(personalized_html, 'html', 'utf-8'))
 
     # Copy attachments from original message
