@@ -198,12 +198,12 @@ def personalize_content(content, player):
         '{name}': player.name,
         '{greeting}': get_gender_greeting(player.female),
         '{email}': player.email,
-        '{verein}': player.club or '',
-        '{elo}': str(player.elo) if player.elo else '',
-        '{fide_elo}': str(player.fide_elo) if player.fide_elo else '',
-        '{spielernummer}': str(player.p_number) if player.p_number else '',
-        '{fidenummer}': str(player.fide_number) if player.fide_number else '',
-        
+        '{verein}': player.club or '(kein Verein)',
+        '{elo}': str(player.elo) if player.elo else '(keine Wertung)',
+        '{fide_elo}': str(player.fide_elo) if player.fide_elo else '(keine Wertung)',
+        '{spielernummer}': str(player.p_number) if player.p_number else '(keine Nummer)',
+        '{fidenummer}': str(player.fide_number) if player.fide_number else '(keine Nummer)',
+
         # Gender-specific German text variations
         '{spieler}': 'Spielerin' if player.female else 'Spieler',
         '{schachspieler}': 'Schachspielerin' if player.female else 'Schachspieler',
