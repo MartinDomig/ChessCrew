@@ -45,14 +45,70 @@ def create_app():
     db.init_app(app)
     return app
 
+def parse_category_specification(category_spec):
+    """Parse category specification like 'U12-U16' or 'U8,U12-U18' into individual categories"""
+    categories = set()
+    
+    # Split by comma first
+    parts = [part.strip() for part in category_spec.split(',')]
+    
+    for part in parts:
+        if '-' in part and part.count('-') == 1:
+            # Handle range like "U12-U16"
+            try:
+                start_str, end_str = part.split('-', 1)
+                start_str = start_str.strip()
+                end_str = end_str.strip()
+                
+                # Extract numbers from U-categories
+                if start_str.startswith('U') and end_str.startswith('U'):
+                    start_num = int(start_str[1:])
+                    end_num = int(end_str[1:])
+                    
+                    # Generate all even numbers in range (chess categories are usually U8, U10, U12, etc.)
+                    for age in range(start_num, end_num + 1, 2):
+                        categories.add(f'U{age}')
+                else:
+                    # Not a U-category range, add as single category
+                    categories.add(part)
+            except (ValueError, IndexError):
+                # If parsing fails, treat as single category
+                categories.add(part)
+        else:
+            # Single category
+            categories.add(part)
+    
+    return list(categories)
+
 def get_players_by_category(category_name):
     """Get all active players with a specific category"""
     with create_app().app_context():
-        # Case insensitive category search
-        players = Player.query.filter(
-            Player.category.ilike(category_name),
-            Player.is_active == True
-        ).all()
+        # Check if it's a category specification (multiple categories)
+        if ',' in category_name or '-' in category_name:
+            categories = parse_category_specification(category_name)
+            all_players = []
+            for cat in categories:
+                players = Player.query.filter(
+                    Player.category.ilike(cat),
+                    Player.is_active == True
+                ).all()
+                all_players.extend(players)
+            
+            # Remove duplicates (players might be in multiple matching categories)
+            unique_players = []
+            seen_ids = set()
+            for player in all_players:
+                if player.id not in seen_ids:
+                    unique_players.append(player)
+                    seen_ids.add(player.id)
+            
+            players = unique_players
+        else:
+            # Single category - case insensitive category search
+            players = Player.query.filter(
+                Player.category.ilike(category_name),
+                Player.is_active == True
+            ).all()
         
         valid_players = []
         for player in players:
@@ -407,16 +463,29 @@ def main():
                 return
             log_msg = f"Sending email to {len(players)} players with tag '{tag}'"
         else:  # category
-            summary_lines.append(f"📧 PROCESSING: Category '{category}' found in subject")
+            # Check if it's a category specification
+            if ',' in category or '-' in category:
+                categories = parse_category_specification(category)
+                summary_lines.append(f"📧 PROCESSING: Category specification '{category}' (expands to: {', '.join(categories)})")
+            else:
+                summary_lines.append(f"📧 PROCESSING: Category '{category}' found in subject")
+            
             # Get players with this category
             players = get_players_by_category(category)
             if not players:
-                error_msg = f"No active players found with category '{category}'"
+                if ',' in category or '-' in category:
+                    error_msg = f"No active players found with category specification '{category}'"
+                else:
+                    error_msg = f"No active players found with category '{category}'"
                 print(error_msg, file=sys.stderr)
                 summary_lines.append(f"❌ ERROR: {error_msg}")
                 send_summary_email(msg, "\n".join(summary_lines))
                 return
-            log_msg = f"Sending email to {len(players)} active players with category '{category}'"
+            
+            if ',' in category or '-' in category:
+                log_msg = f"Sending email to {len(players)} active players matching category specification '{category}'"
+            else:
+                log_msg = f"Sending email to {len(players)} active players with category '{category}'"
 
         print(log_msg, file=sys.stderr)
         summary_lines.append(f"📬 SENDING: {log_msg}")
@@ -465,7 +534,12 @@ def main():
         if tag:
             summary_lines.append(f"  • Total players with tag '{tag}': {len(players)}")
         else:
-            summary_lines.append(f"  • Total active players with category '{category}': {len(players)}")
+            if ',' in category or '-' in category:
+                categories = parse_category_specification(category)
+                summary_lines.append(f"  • Total active players matching category specification '{category}': {len(players)}")
+                summary_lines.append(f"  • Categories included: {', '.join(categories)}")
+            else:
+                summary_lines.append(f"  • Total active players with category '{category}': {len(players)}")
         
         if failed_emails:
             summary_lines.append(f"\n❌ FAILED EMAILS:")
