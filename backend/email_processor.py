@@ -207,7 +207,58 @@ def is_authenticated_sender(msg):
     
     return False
 
+def send_summary_email(original_msg, summary_content):
+    """Send a summary email back to the admin with processing results"""
+    try:
+        # Create multipart message to include both summary and original email
+        summary_msg = MIMEMultipart()
+        summary_msg['From'] = f"ChessCrew Email Processor <{ADMIN_EMAIL}>"
+        summary_msg['To'] = ADMIN_EMAIL
+        summary_msg['Subject'] = f"Re: {remove_tag_from_subject(original_msg['Subject'] or 'No Subject')}"
+        
+        # Add reply headers to make email clients recognize this as a reply
+        message_id = original_msg.get('Message-ID')
+        if message_id:
+            summary_msg['In-Reply-To'] = message_id
+            summary_msg['References'] = message_id
+        
+        # Add the summary as the main body
+        summary_part = MIMEText(summary_content, 'plain', 'utf-8')
+        summary_msg.attach(summary_part)
+        
+        # Add the original email as an attachment
+        original_attachment = MIMEText(original_msg.as_string(), 'plain', 'utf-8')
+        original_attachment.add_header('Content-Disposition', 'attachment', filename='original_email.txt')
+        summary_msg.attach(original_attachment)
+        
+        # Copy any attachments from the original email
+        if original_msg.is_multipart():
+            for part in original_msg.walk():
+                if part.get_content_maintype() == 'multipart':
+                    continue
+                if part.get('Content-Disposition') is None:
+                    continue
+
+                filename = part.get_filename()
+                if filename:
+                    attachment = MIMEBase(part.get_content_maintype(), part.get_content_subtype())
+                    attachment.set_payload(part.get_payload(decode=True))
+                    encoders.encode_base64(attachment)
+                    attachment.add_header('Content-Disposition', f'attachment; filename="original_{filename}"')
+                    summary_msg.attach(attachment)
+        
+        # Send the summary
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.sendmail(ADMIN_EMAIL, ADMIN_EMAIL, summary_msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Failed to send summary email: {e}", file=sys.stderr)
+        return False
+
 def main():
+    summary_lines = []  # Collect all log output for summary
+    
     try:
         # Parse the incoming email
         msg = parse_email_from_stdin()
@@ -215,12 +266,20 @@ def main():
         # Security checks: verify sender is authenticated and from admin
         from_addr = email.utils.parseaddr(msg['From'])[1]
         if from_addr != ADMIN_EMAIL:
-            print(f"Email from {from_addr} is not from admin, disregarding.", file=sys.stderr)
+            error_msg = f"Email from {from_addr} is not from admin, disregarding."
+            print(error_msg, file=sys.stderr)
+            summary_lines.append(f"❌ REJECTED: {error_msg}")
+            send_summary_email(msg, "\n".join(summary_lines))
             return
             
         if not is_authenticated_sender(msg):
-            print(f"Email from {from_addr} was not sent via authenticated SMTP, disregarding for security.", file=sys.stderr)
+            error_msg = f"Email from {from_addr} was not sent via authenticated SMTP, disregarding for security."
+            print(error_msg, file=sys.stderr)
+            summary_lines.append(f"❌ REJECTED: {error_msg}")
+            send_summary_email(msg, "\n".join(summary_lines))
             return
+
+        summary_lines.append(f"✅ ACCEPTED: Email from {from_addr} passed security checks")
 
         # Get all recipients
         recipients = []
@@ -234,33 +293,68 @@ def main():
         # Extract tag from subject line
         tag = get_tag_from_subject(msg['Subject'])
         if not tag:
-            print("No tag found in subject line. Expected format: [tag:tagname]", file=sys.stderr)
+            error_msg = "No tag found in subject line. Expected format: [tag:tagname]"
+            print(error_msg, file=sys.stderr)
+            summary_lines.append(f"❌ ERROR: {error_msg}")
+            send_summary_email(msg, "\n".join(summary_lines))
             return
+
+        summary_lines.append(f"📧 PROCESSING: Tag '{tag}' found in subject")
 
         # Process the tag
         emails_sent = 0
+        failed_emails = []
 
         # Get players with this tag
         players = get_players_by_tag(tag)
 
         if not players:
-            print(f"No players found with tag '{tag}'", file=sys.stderr)
+            error_msg = f"No players found with tag '{tag}'"
+            print(error_msg, file=sys.stderr)
+            summary_lines.append(f"❌ ERROR: {error_msg}")
+            send_summary_email(msg, "\n".join(summary_lines))
             return
 
-        print(f"Sending email to {len(players)} players with tag '{tag}'", file=sys.stderr)
+        log_msg = f"Sending email to {len(players)} players with tag '{tag}'"
+        print(log_msg, file=sys.stderr)
+        summary_lines.append(f"📬 SENDING: {log_msg}")
 
         # Send personalized email to each player
         for player in players:
             if send_personalized_email(msg, player):
                 emails_sent += 1
-                print(f"Sent email to {player.email}", file=sys.stderr)
+                success_msg = f"Sent email to {player.email}"
+                print(success_msg, file=sys.stderr)
+                summary_lines.append(f"  ✅ {player.name} ({player.email})")
             else:
-                print(f"Failed to send email to {player.email}", file=sys.stderr)
+                fail_msg = f"Failed to send email to {player.email}"
+                print(fail_msg, file=sys.stderr)
+                failed_emails.append(player.email)
+                summary_lines.append(f"  ❌ {player.name} ({player.email}) - FAILED")
 
-        print(f"Total emails sent: {emails_sent}", file=sys.stderr)
+        final_msg = f"Total emails sent: {emails_sent}"
+        print(final_msg, file=sys.stderr)
+        summary_lines.append(f"\n📊 SUMMARY:")
+        summary_lines.append(f"  • Successfully sent: {emails_sent}")
+        summary_lines.append(f"  • Failed: {len(failed_emails)}")
+        summary_lines.append(f"  • Total players with tag '{tag}': {len(players)}")
+        
+        if failed_emails:
+            summary_lines.append(f"\n❌ FAILED EMAILS:")
+            for email_addr in failed_emails:
+                summary_lines.append(f"  • {email_addr}")
+
+        # Send summary email back to admin
+        send_summary_email(msg, "\n".join(summary_lines))
 
     except Exception as e:
-        print(f"Error processing email: {e}", file=sys.stderr)
+        error_msg = f"Error processing email: {e}"
+        print(error_msg, file=sys.stderr)
+        summary_lines.append(f"💥 FATAL ERROR: {error_msg}")
+        try:
+            send_summary_email(msg, "\n".join(summary_lines))
+        except:
+            pass  # If we can't send summary, at least don't crash
         sys.exit(1)
 
 if __name__ == '__main__':
