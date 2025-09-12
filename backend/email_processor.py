@@ -176,11 +176,8 @@ def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_
                 attachment.set_payload(part.get_payload(decode=True))
                 encoders.encode_base64(attachment)
                 attachment.add_header('Content-Disposition', f'attachment; filename="{filename}"')
-                # Add attachment to the main message (not the alternative part)
-                if msg.get_payload():
-                    msg.get_payload().append(attachment)
-                else:
-                    msg.attach(attachment)
+                # Add attachment to the main message
+                msg.attach(attachment)
 
     # Send the email
     try:
