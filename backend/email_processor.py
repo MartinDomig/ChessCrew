@@ -101,7 +101,10 @@ def personalize_content(content, player):
 
     personalized = content
     for placeholder, value in replacements.items():
-        personalized = personalized.replace(placeholder, value)
+        # Case insensitive replacement - find all variations of the placeholder
+        import re
+        pattern = re.escape(placeholder).replace(r'\{', r'\{').replace(r'\}', r'\}')
+        personalized = re.sub(pattern, value, personalized, flags=re.IGNORECASE)
 
     return personalized
 
