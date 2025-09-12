@@ -81,7 +81,7 @@ def parse_category_specification(category_spec):
     return list(categories)
 
 def get_players_by_category(category_name):
-    """Get all active players with a specific category"""
+    """Get all active players with a specific kat (category)"""
     with create_app().app_context():
         # Check if it's a category specification (multiple categories)
         if ',' in category_name or '-' in category_name:
@@ -89,7 +89,7 @@ def get_players_by_category(category_name):
             all_players = []
             for cat in categories:
                 players = Player.query.filter(
-                    Player.category.ilike(cat),
+                    Player.kat.ilike(cat),
                     Player.is_active == True
                 ).all()
                 all_players.extend(players)
@@ -106,7 +106,7 @@ def get_players_by_category(category_name):
         else:
             # Single category - case insensitive category search
             players = Player.query.filter(
-                Player.category.ilike(category_name),
+                Player.kat.ilike(category_name),
                 Player.is_active == True
             ).all()
         
