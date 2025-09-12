@@ -179,7 +179,7 @@ def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_
         text_container.attach(MIMEText(personalized_html, 'html', 'utf-8'))
         msg.attach(text_container)
     else:
-        # Add text content directly
+        # Add text content directly (for no attachments OR single text format)
         if plain_text_body:
             personalized_plain = personalize_content(plain_text_body, player)
             msg.attach(MIMEText(personalized_plain, 'plain', 'utf-8'))
@@ -188,16 +188,18 @@ def send_personalized_email(original_msg, player, smtp_server=SMTP_SERVER, smtp_
             personalized_html = personalize_content(html_body, player)
             msg.attach(MIMEText(personalized_html, 'html', 'utf-8'))
 
-    # Copy attachments from original message
-    if has_attachments:
+    # Copy attachments from original message (only once)
+    if has_attachments and original_msg.is_multipart():
         for part in original_msg.walk():
+            # Skip multipart containers
             if part.get_content_maintype() == 'multipart':
                 continue
-            if part.get('Content-Disposition') is None:
+            # Skip text/html content parts (not attachments)
+            if part.get_content_type() in ['text/plain', 'text/html']:
                 continue
-
-            filename = part.get_filename()
-            if filename:
+            # Only process actual attachments
+            if part.get('Content-Disposition') is not None and part.get_filename():
+                filename = part.get_filename()
                 attachment = MIMEBase(part.get_content_maintype(), part.get_content_subtype())
                 attachment.set_payload(part.get_payload(decode=True))
                 encoders.encode_base64(attachment)
