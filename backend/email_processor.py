@@ -71,6 +71,15 @@ def get_tag_from_recipient(recipient):
         return match.group(1)
     return None
 
+def get_tag_from_subject(subject):
+    """Extract tag from subject line like [tag:youth] Tournament info"""
+    if not subject:
+        return None
+    match = re.search(r'\[tag:([^\]]+)\]', subject, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return None
+
 def get_gender_greeting(female):
     """Get gender-specific greeting"""
     return "Liebe" if female else "Lieber"
@@ -201,31 +210,31 @@ def main():
         if msg['Bcc']:
             recipients.extend(email.utils.getaddresses([msg['Bcc']]))
 
-        # Process each recipient
-        processed_tags = set()
+        # Extract tag from subject line
+        tag = get_tag_from_subject(msg['Subject'])
+        if not tag:
+            print("No tag found in subject line. Expected format: [tag:tagname]", file=sys.stderr)
+            return
+
+        # Process the tag
         emails_sent = 0
 
-        for name, addr in recipients:
-            tag = get_tag_from_recipient(addr)
-            if tag and tag not in processed_tags:
-                processed_tags.add(tag)
+        # Get players with this tag
+        players = get_players_by_tag(tag)
 
-                # Get players with this tag
-                players = get_players_by_tag(tag)
+        if not players:
+            print(f"No players found with tag '{tag}'", file=sys.stderr)
+            return
 
-                if not players:
-                    print(f"No players found with tag '{tag}'", file=sys.stderr)
-                    continue
+        print(f"Sending email to {len(players)} players with tag '{tag}'", file=sys.stderr)
 
-                print(f"Sending email to {len(players)} players with tag '{tag}'", file=sys.stderr)
-
-                # Send personalized email to each player
-                for player in players:
-                    if send_personalized_email(msg, player):
-                        emails_sent += 1
-                        print(f"Sent email to {player.email}", file=sys.stderr)
-                    else:
-                        print(f"Failed to send email to {player.email}", file=sys.stderr)
+        # Send personalized email to each player
+        for player in players:
+            if send_personalized_email(msg, player):
+                emails_sent += 1
+                print(f"Sent email to {player.email}", file=sys.stderr)
+            else:
+                print(f"Failed to send email to {player.email}", file=sys.stderr)
 
         print(f"Total emails sent: {emails_sent}", file=sys.stderr)
 
