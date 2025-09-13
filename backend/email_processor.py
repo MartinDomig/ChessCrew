@@ -186,17 +186,13 @@ def is_dry_run_from_subject(subject):
         return False
     return bool(re.search(r'\[(dry|test)\]', subject, re.IGNORECASE))
 
-def get_gender_greeting(female):
-    """Get gender-specific greeting"""
-    return "Liebe" if female else "Lieber"
-
 def personalize_content(content, player):
     """Replace placeholders in email content with player-specific data"""
     replacements = {
         '{vorname}': player.first_name,
         '{nachname}': player.last_name,
         '{name}': player.name,
-        '{greeting}': get_gender_greeting(player.female),
+        '{lieber}': "Liebe" if player.female else "Lieber",
         '{email}': player.email,
         '{verein}': player.club or '(kein Verein)',
         '{elo}': str(player.elo) if player.elo else '(keine Wertung)',
@@ -211,7 +207,6 @@ def personalize_content(content, player):
         '{sieger}': 'Siegerin' if player.female else 'Sieger',
         '{gewinner}': 'Gewinnerin' if player.female else 'Gewinner',
         '{meister}': 'Meisterin' if player.female else 'Meister',
-        '{vereinsmitglied}': 'Vereinsmitglied' if player.female else 'Vereinsmitglied',  # Same for both
         
         # Gender-specific adjectives with common endings
         '{aktiver}': 'aktive' if player.female else 'aktiver',
