@@ -193,6 +193,21 @@ def create_tag():
     db.session.commit()
     return jsonify({'id': tag.id, 'name': tag.name, 'color': tag.color}), 201
 
+@api.route('/tags/<int:tag_id>', methods=['DELETE'])
+@admin_required
+def delete_tag(tag_id):
+    tag = Tag.query.get(tag_id)
+    if not tag:
+        return jsonify({'error': 'Tag nicht gefunden.'}), 404
+    
+    # Check if tag is still assigned to players
+    if tag.players:
+        return jsonify({'error': 'Tag ist noch Spielern zugewiesen und kann nicht gelöscht werden.'}), 409
+    
+    db.session.delete(tag)
+    db.session.commit()
+    return jsonify({'status': 'deleted'})
+
 @api.route('/players/<int:player_id>/tags', methods=['POST'])
 @login_required
 def add_tag_to_player(player_id):
