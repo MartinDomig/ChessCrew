@@ -22,6 +22,7 @@ KEY_TRANSLATIONS = {
     'country': 'Land',
     'phone': 'Telefon',
     'email': 'E-Mail',
+    'email_alternate': 'E-Mail (alternativ)',
     'club': 'Verein',
     'is_active': 'Aktiv',
     'female': 'Weiblich',

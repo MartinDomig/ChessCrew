@@ -27,6 +27,7 @@ class Player(db.Model):
     club = db.Column(db.String(80), nullable=True)
     is_active = db.Column(db.Boolean, default=False)
     female = db.Column(db.Boolean, default=False)
+    email_alternate = db.Column(db.String(120), nullable=True)
     
     # Helper properties
     @property
