@@ -20,6 +20,7 @@ export default function ContactInfo({ player, onPlayerUpdated, contactEditing, o
         method: 'PUT',
         body: {
           email: localPlayer.email,
+          email_alternate: localPlayer.email_alternate,
           phone: localPlayer.phone,
           address: localPlayer.address,
           zip: localPlayer.zip,
@@ -107,6 +108,40 @@ export default function ContactInfo({ player, onPlayerUpdated, contactEditing, o
                     <React.Fragment key={email}>
                           <a href={`mailto:${email}`}>{email}</a>
                           {idx < localPlayer.email.split(/[,;\s]+/).filter(e => e).length - 1 ? ', ' : ''}
+                        </React.Fragment>
+                      ))
+                      : null}
+              </Typography>
+            </>
+          )}
+        </Box>
+      )}
+
+      {/* Alternate Email Section */}
+      {(contactEditing || localPlayer.email_alternate) && (
+        <Box sx={{ mb: 1, display: 'flex', alignItems: 'flex-start' }}>
+          {contactEditing ? (
+            <TextField
+              fullWidth
+              size="small"
+              label="Alternative E-Mail"
+              value={localPlayer.email_alternate || ''}
+              onChange={(e) => setLocalPlayer(prev => ({ ...prev, email_alternate: e.target.value }))}
+              variant="outlined"
+              sx={{ flex: 1 }}
+            />
+          ) : (
+            <>
+              <EmailIcon sx={{ mr: 1, color: 'text.secondary', flexShrink: 0 }} />
+              <Typography sx={{ flex: 1 }}>
+                {localPlayer.email_alternate
+                  ? localPlayer.email_alternate
+                  .split(/[,;\s]+/)
+                  .filter(e => e)
+                  .map((email, idx) => (
+                    <React.Fragment key={email}>
+                          <a href={`mailto:${email}`}>{email}</a>
+                          {idx < localPlayer.email_alternate.split(/[,;\s]+/).filter(e => e).length - 1 ? ', ' : ''}
                         </React.Fragment>
                       ))
                       : null}
