@@ -112,20 +112,25 @@ def get_players_by_category(category_name):
         
         valid_players = []
         for player in players:
-            if player.email and player.email.strip():
+            # Check if player has any valid email addresses (main or alternate)
+            if get_player_emails(player):
                 valid_players.append(player)
 
         return valid_players
 
 def get_player_emails(player):
     """Get all email addresses for a player, handling multiple emails separated by various delimiters"""
-    if not player.email or not player.email.strip():
-        return []
-    
-    # Split by common delimiters: comma, semicolon, space
-    import re
-    emails = re.split(r'[,;\s]+', player.email.strip())
-    
+    emails = []
+
+    # Add alternate email addresses
+    if player.email_alternate and player.email_alternate.strip():
+        emails.extend(re.split(r'[,;\s]+', player.email_alternate.strip()))
+
+    if not emails:
+        # Add main email addresses
+        if player.email and player.email.strip():
+            emails.extend(re.split(r'[,;\s]+', player.email.strip()))
+
     # Clean up and validate emails
     valid_emails = []
     for email in emails:
@@ -145,7 +150,8 @@ def get_players_by_tag(tag_name):
 
         players = []
         for player in tag.players:
-            if player.email and player.email.strip():
+            # Check if player has any valid email addresses (main or alternate)
+            if get_player_emails(player):
                 players.append(player)
 
         return players
@@ -193,7 +199,7 @@ def personalize_content(content, player):
         '{nachname}': player.last_name,
         '{name}': player.name,
         '{lieber}': "Liebe" if player.female else "Lieber",
-        '{email}': player.email,
+        '{email}': player.email_alternate or player.email or '',
         '{verein}': player.club or '(kein Verein)',
         '{elo}': str(player.elo) if player.elo else '(keine Wertung)',
         '{fide_elo}': str(player.fide_elo) if player.fide_elo else '(keine Wertung)',
