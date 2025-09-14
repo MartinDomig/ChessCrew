@@ -4,6 +4,7 @@ import ImportExportIcon from '@mui/icons-material/ImportExport';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SellIcon from '@mui/icons-material/Sell';
 import SportsScoreIcon from '@mui/icons-material/SportsScore';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
@@ -14,7 +15,7 @@ import Switch from '@mui/material/Switch';
 import React, {useState, useRef} from 'react';
 import { VersionInfo } from './VersionInfo';
 
-function BurgerMenu({onLogout}) {
+function BurgerMenu({onLogout, isAdmin, onTagManagement}) {
   const [anchorEl, setAnchorEl] = useState(null);
   const versionInfoRef = useRef(null);
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
@@ -66,6 +67,11 @@ function BurgerMenu({onLogout}) {
     }
   };
 
+  const handleTagManagementClick = () => {
+    onTagManagement();
+    handleMenuClose();
+  };
+
   return (
       <><IconButton edge = 'end' color = 'inherit' sx =
          {
@@ -79,6 +85,14 @@ function BurgerMenu({onLogout}) {
           </ListItemIcon>
           Nach Updates suchen
         </MenuItem>
+        {isAdmin && (
+          <MenuItem onClick={handleTagManagementClick}>
+            <ListItemIcon>
+              <SellIcon />
+            </ListItemIcon>
+            Tag-Verwaltung
+          </MenuItem>
+        )}
         <MenuItem onClick={handleLogoutClick}>
           <ListItemIcon>
             <LogoutIcon />

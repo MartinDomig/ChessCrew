@@ -35,6 +35,7 @@ import TournamentListSearchBar from './TournamentListSearchBar';
 import PlayerListSearchBar from './PlayerListSearchBar';
 import { StaleDataBanner } from './StaleDataIndicator';
 import { UpdateNotifier } from './UpdateNotifier';
+import TagManagementModal from './TagManagementModal';
 
 // Navigation types
 const NAV_TYPES = {
@@ -287,6 +288,7 @@ function MainWindowContent({user}) {
   const handleImportClick = () => setImportOpen(true);
   const [tournamentImportOpen, setTournamentImportOpen] = useState(false);
   const handleTournamentImportClick = () => setTournamentImportOpen(true);
+  const [tagManagementOpen, setTagManagementOpen] = useState(false);
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
   const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading, sortBy, setSortBy, filteredPlayers} = usePlayerList();
@@ -404,7 +406,7 @@ function MainWindowContent({user}) {
             />
           </Tabs>
           <Box sx={{ ml: 'auto' }}>
-            <BurgerMenu onLogout={handleLogout} />
+            <BurgerMenu onLogout={handleLogout} isAdmin={isAdmin} onTagManagement={() => setTagManagementOpen(true)} />
           </Box>
           <ImportDialog
             open={importOpen}
@@ -421,6 +423,10 @@ function MainWindowContent({user}) {
               await clearApiCache();
               reloadTournaments();
             }}
+          />
+          <TagManagementModal
+            open={tagManagementOpen}
+            onClose={() => setTagManagementOpen(false)}
           />
         </Toolbar>
       </AppBar>
