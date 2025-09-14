@@ -24,6 +24,7 @@ import BurgerMenu from './BurgerMenu';
 import {exportEmailList} from './csvUtils';
 import InstallPWA from './InstallPWA';
 import ImportDialog from './ImportDialog';
+import TournamentImportDialog from './TournamentImportDialog';
 import PlayerDetails from './PlayerDetails';
 import PlayerList from './PlayerList';
 import {PlayerListProvider, usePlayerList} from './PlayerListContext';
@@ -78,7 +79,7 @@ function useNavigationStack(initialStack = []) {
 }
 
 // Navigation renderer component
-function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading, sortBy, setSortBy, filteredPlayers }) {
+function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTournamentUpdate, onTournamentDelete, isAdmin, handleImportClick, handleTournamentImportClick, players, tournaments, activeOnly, setActiveOnly, reloadPlayers, reloadTournaments, playersLoading, sortBy, setSortBy, filteredPlayers }) {
   if (!navObject) return null;
 
   const { type, data } = navObject;
@@ -206,6 +207,17 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
               <TournamentListSearchBar />
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {isAdmin && (
+                <IconButton
+                  color='primary'
+                  onClick={handleTournamentImportClick}
+                  size='small'
+                  title='Turnier importieren'
+                  sx={{ p: 0.5 }}
+                >
+                  <ImportExportIcon fontSize='small' />
+                </IconButton>
+              )}
               <IconButton
                 color="primary"
                 onClick={reloadTournaments}
@@ -273,6 +285,8 @@ function NavigationRenderer({ navObject, onNavigate, onPlayerUpdated, onTourname
 function MainWindowContent({user}) {
   const [importOpen, setImportOpen] = useState(false);
   const handleImportClick = () => setImportOpen(true);
+  const [tournamentImportOpen, setTournamentImportOpen] = useState(false);
+  const handleTournamentImportClick = () => setTournamentImportOpen(true);
   const isAdmin = user && user.admin;
   const isTabletOrLarger = useMediaQuery('(min-width: 768px)');
   const {players, reloadPlayers, updatePlayer, activeOnly, setActiveOnly, inputValue, setInputValue, searchTags, setSearchTags, hasStaleData: hasStalePlayerData, loading: playersLoading, sortBy, setSortBy, filteredPlayers} = usePlayerList();
@@ -400,6 +414,14 @@ function MainWindowContent({user}) {
               reloadPlayers();
             }}
           />
+          <TournamentImportDialog
+            open={tournamentImportOpen}
+            onClose={() => setTournamentImportOpen(false)}
+            onImported={async () => {
+              await clearApiCache();
+              reloadTournaments();
+            }}
+          />
         </Toolbar>
       </AppBar>
 
@@ -447,6 +469,7 @@ function MainWindowContent({user}) {
                 onTournamentDelete={handleTournamentDelete}
                 isAdmin={isAdmin}
                 handleImportClick={handleImportClick}
+                handleTournamentImportClick={handleTournamentImportClick}
                 players={players}
                 tournaments={tournaments}
                 activeOnly={activeOnly}
@@ -471,6 +494,7 @@ function MainWindowContent({user}) {
                 onTournamentDelete={handleTournamentDelete}
                 isAdmin={isAdmin}
                 handleImportClick={handleImportClick}
+                handleTournamentImportClick={handleTournamentImportClick}
                 players={players}
                 tournaments={tournaments}
                 activeOnly={activeOnly}
@@ -492,6 +516,7 @@ function MainWindowContent({user}) {
             onTournamentDelete={handleTournamentDelete}
             isAdmin={isAdmin}
             handleImportClick={handleImportClick}
+            handleTournamentImportClick={handleTournamentImportClick}
             players={players}
             tournaments={tournaments}
             activeOnly={activeOnly}
