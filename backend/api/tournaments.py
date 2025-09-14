@@ -311,3 +311,63 @@ def crawler_status():
             'message': f'Error getting crawler status: {str(e)}'
         }), 500
 
+@tournaments_bp.route('/tournaments/import', methods=['POST'])
+@admin_required
+def import_tournament_by_url():
+    """Import a tournament by URL"""
+    try:
+        data = request.get_json()
+        tournament_url = data.get('url')
+        
+        if not tournament_url:
+            return jsonify({
+                'success': False,
+                'message': 'Tournament URL is required'
+            }), 400
+        
+        # Import the necessary modules
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        
+        from import_tournament import extract_tournament_id, import_tournament
+        from chess_results_crawler import ChessResultsCrawler
+        
+        # Extract tournament ID from URL
+        try:
+            tournament_id = extract_tournament_id(tournament_url)
+        except ValueError as e:
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 400
+        
+        # Initialize crawler and login
+        crawler = ChessResultsCrawler()
+        if not crawler.login():
+            return jsonify({
+                'success': False,
+                'message': 'Failed to login to chess-results.com'
+            }), 500
+        
+        # Import the tournament
+        result = import_tournament(crawler, tournament_id, force=False)
+        
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'message': 'Tournament imported successfully',
+                'tournament_id': tournament_id
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result.get('error', 'Unknown error occurred')
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Import failed: {str(e)}'
+        }), 500
+
