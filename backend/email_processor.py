@@ -161,13 +161,6 @@ def parse_email_from_stdin():
     raw_email = sys.stdin.read()
     return email.message_from_string(raw_email)
 
-def get_tag_from_recipient(recipient):
-    """Extract tag from recipient address like chesscrew.tag@domig.net"""
-    match = re.match(fr'chesscrew\.([^@]+)@{DOMAIN}', recipient, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    return None
-
 def get_tag_from_subject(subject):
     """Extract tag from subject line like [tag:youth] Tournament info"""
     if not subject:
