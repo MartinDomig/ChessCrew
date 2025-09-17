@@ -1,3 +1,6 @@
+# File contains secrets
+config.py
+
 # Virtual environment
 venv/
 env/
