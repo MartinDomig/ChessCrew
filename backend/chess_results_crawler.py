@@ -18,12 +18,13 @@ logger = logging.getLogger(__name__)
 
 class ChessResultsCrawler:
     def __init__(self):
+        from config import CHESS_RESULT_USER, CHESS_RESULT_PASSWORD
         self.session = requests.Session()
         self.base_url = "https://chess-results.com"
         self.login_url = f"{self.base_url}/Login.aspx?xx=0"
         self.fed_url = f"{self.base_url}/fed.aspx?lan=0&fed=AUT"
-        self.username = "142838"
-        self.password = "zbLiZm58Y"
+        self.username = CHESS_RESULT_USER
+        self.password = CHESS_RESULT_PASSWORD
         self.logged_in = False
         
         # Headers to mimic a real browser

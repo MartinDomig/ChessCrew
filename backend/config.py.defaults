@@ -1,0 +1,10 @@
+# Configuration file for email processor
+# Copy this file to config.py and modify as needed
+
+DOMAIN = 'your-domain.com'
+ADMIN_EMAIL = 'admin@your-domain.com'
+SMTP_SERVER = 'localhost'
+SMTP_PORT = 25
+TRUSTED_MAIL_SERVER = 'your.trusted.mail.server.com'
+CHESS_RESULT_USER = 'your_user_here'
+CHESS_RESULT_PASSWORD = 'your_password_here'
